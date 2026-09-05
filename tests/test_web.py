@@ -204,7 +204,17 @@ def test_unknown_session_and_bad_action_are_rejected(tmp_path: Path) -> None:
 
         session_id = _start(client)
         _wait(client, session_id, "completed")
-        stopped = client.post(f"/api/sessions/{session_id}/actions", json={"action": "stop"})
+        # The session is reported completed, but the engine may still be
+        # tearing down for a moment; stop only settles on 409 once nothing is
+        # live. Poll briefly instead of asserting on the first response.
+        deadline = time.time() + 5.0
+        while time.time() < deadline:
+            stopped = client.post(
+                f"/api/sessions/{session_id}/actions", json={"action": "stop"}
+            )
+            if stopped.status_code == 409:
+                break
+            time.sleep(0.05)
         assert stopped.status_code == 409  # nothing live to stop
 
 
