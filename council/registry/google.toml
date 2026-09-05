@@ -1,0 +1,67 @@
+# Google Gemini（generativelanguage API）。
+# 注意：Gemini 3+ 用 thinkingLevel（枚举），Gemini 2.5 用 thinkingBudget（整数），
+# 两代参数混用会报错——model 条目里的 thinking_style 覆盖是数据，不是代码分支。
+# 参数核实见 docs/PROVIDERS.md（2026-09-02）。
+
+[provider]
+id = "google_api"
+display = "Google Gemini"
+base_url = "https://generativelanguage.googleapis.com"
+secret_env = "GOOGLE_API_KEY"
+docs = "https://developers.generativeai.google/api/generate-content"
+
+[provider.thinking]
+style = "thinking_level"
+param = "thinkingLevel"
+
+[provider.thinking.levels]
+low = "LOW"
+medium = "MEDIUM"
+high = "HIGH"
+
+[[models]]
+id = "gemini-3.5-flash"
+display = "Gemini 3.5 Flash"
+thinking = true
+structured_output = true
+streaming = true
+max_context_tokens = 1048576
+max_output_tokens = 65536
+verified = "2026-09-02"
+source = "https://clouddocs-dot-devsite-v2-prod.appspot.com/gemini-enterprise-agent-platform/models/guides/gemini-3-5-flash"
+
+[[models]]
+id = "gemini-3.1-pro-preview"
+display = "Gemini 3.1 Pro (Preview)"
+thinking = true
+structured_output = true
+streaming = true
+max_context_tokens = 1048576
+max_output_tokens = 65536
+verified = "2026-09-02"
+source = "https://clouddocs-dot-devsite-v2-prod.appspot.com/gemini-enterprise-agent-platform/models/guides/gemini-3-5-flash"
+
+[[models]]
+id = "gemini-2.5-pro"
+display = "Gemini 2.5 Pro"
+thinking = true
+structured_output = true
+streaming = true
+max_context_tokens = 1048576
+thinking_style = "thinking_budget"
+param = "thinkingBudget"
+levels = { low = 1024, medium = 4096, high = 16384 }
+verified = "2026-09-02"
+source = "https://developers.generativeai.google/api/generate-content"
+
+[[models]]
+id = "gemini-2.5-flash"
+display = "Gemini 2.5 Flash"
+thinking = true
+structured_output = true
+streaming = true
+thinking_style = "thinking_budget"
+param = "thinkingBudget"
+levels = { low = 1024, medium = 4096, high = 16384 }
+verified = "2026-09-02"
+source = "https://developers.generativeai.google/api/generate-content"

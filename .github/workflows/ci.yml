@@ -1,0 +1,96 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: lint + types
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+      - name: Install (editable, dev extras)
+        run: uv sync --extra dev
+      - name: ruff format
+        run: uv run ruff format --check .
+      - name: ruff lint
+        run: uv run ruff check .
+      - name: mypy --strict
+        run: uv run mypy --no-incremental
+
+  test:
+    name: pytest (${{ matrix.os }} / py${{ matrix.python }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python: ["3.11", "3.12", "3.13"]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Install (editable, dev extras)
+        run: uv sync --extra dev
+      - name: Test suite (fully offline — fake adapters only)
+        run: uv run pytest tests -q
+
+  build:
+    name: wheel + sdist smoke
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+      - name: Build
+        run: uv build
+      - name: Verify wheel contents (web assets travel with the package)
+        run: |
+          python - <<'PY'
+          import glob, zipfile, tarfile
+          wheel = glob.glob("dist/*.whl")[0]
+          names = set(zipfile.ZipFile(wheel).namelist())
+          need = [
+              "council/__init__.py",
+              "council/core/orchestrator.py",
+              "council/web/server.py",
+              "council/web/static/index.html",
+              "council/web/static/themes/high-contrast.json",
+              "council/web/static/i18n/en.json",
+          ]
+          assert not [n for n in need if n not in names], "wheel misses package data"
+          assert not any("__pycache__" in n for n in names)
+          meta = [n for n in names if n.endswith("METADATA")][0]
+          version = next(
+              line for line in zipfile.ZipFile(wheel).read(meta).decode().splitlines()
+              if line.startswith("Version:")
+          )
+          assert "1.0.0" in version, version
+          with tarfile.open(glob.glob("dist/*.tar.gz")[0]) as t:
+              tops = {m.name.split("/", 1)[1].split("/", 1)[0]
+                      for m in t.getmembers() if "/" in m.name}
+              assert {"tests", "docs"} <= tops, tops
+          print("wheel & sdist OK:", version)
+          PY
+      - name: Fresh-install smoke (fake council run)
+        run: |
+          uv venv /tmp/check
+          uv pip install --python /tmp/check/bin/python dist/*.whl
+          /tmp/check/bin/council run "CI wheel 冒烟" --data-dir /tmp/check-data > /dev/null
+          /tmp/check/bin/python -c "import council; assert council.__version__ == '1.0.0'"
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/

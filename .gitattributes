@@ -1,0 +1,8 @@
+# Normalize line endings across the CI matrix (ubuntu / macos / windows).
+* text=auto eol=lf
+
+*.png binary
+*.jpg binary
+*.gif binary
+*.ico binary
+*.sqlite3 binary

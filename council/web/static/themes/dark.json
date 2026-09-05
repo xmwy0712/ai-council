@@ -1,0 +1,25 @@
+{
+  "id": "dark",
+  "label": "深色",
+  "mode": "dark",
+  "colors": {
+    "--bg": "#0d1117",
+    "--bg-elev": "#161b22",
+    "--bg-panel": "#0a0e14",
+    "--border": "#30363d",
+    "--text": "#e6edf3",
+    "--text-dim": "#a9b3bf",
+    "--text-faint": "#6e7681",
+    "--accent": "#4f8cff",
+    "--accent-contrast": "#081120",
+    "--accent-soft": "#1c2a48",
+    "--ok": "#3fb950",
+    "--ok-soft": "#11301a",
+    "--warn": "#d29922",
+    "--warn-soft": "#33280a",
+    "--err": "#f85149",
+    "--err-soft": "#431a1c",
+    "--code-bg": "#161b22",
+    "--code-text": "#c9d1d9"
+  }
+}

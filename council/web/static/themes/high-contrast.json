@@ -1,0 +1,25 @@
+{
+  "id": "high-contrast",
+  "label": "高对比",
+  "mode": "dark",
+  "colors": {
+    "--bg": "#000000",
+    "--bg-elev": "#0a0a0a",
+    "--bg-panel": "#101010",
+    "--border": "#ffffff",
+    "--text": "#ffffff",
+    "--text-dim": "#ffe9a8",
+    "--text-faint": "#ffd87a",
+    "--accent": "#ffd500",
+    "--accent-contrast": "#000000",
+    "--accent-soft": "#3a3100",
+    "--ok": "#00ff66",
+    "--ok-soft": "#003d19",
+    "--warn": "#ffb000",
+    "--warn-soft": "#402a00",
+    "--err": "#ff5252",
+    "--err-soft": "#520e0e",
+    "--code-bg": "#1a1a1a",
+    "--code-text": "#ffffff"
+  }
+}

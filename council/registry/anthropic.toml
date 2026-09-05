@@ -1,0 +1,74 @@
+# Anthropic Messages API。
+# budget_tokens 的 low/medium/high 映射是本项目的默认档位（可改，同步更新 docs/PROVIDERS.md）；
+# 其余参数名与取值范围见 docs/PROVIDERS.md（核实 2026-09-02）。
+
+[provider]
+id = "anthropic_api"
+display = "Anthropic"
+base_url = "https://api.anthropic.com"
+secret_env = "ANTHROPIC_API_KEY"
+docs = "https://console.anthropic.com/docs/en/build-with-claude/extended-thinking"
+
+[provider.thinking]
+style = "budget_tokens"
+param = "budget_tokens"
+
+[provider.thinking.levels]
+low = 2048
+medium = 8192
+high = 32768
+
+[[models]]
+id = "claude-sonnet-4-6"
+display = "Claude Sonnet 4.6"
+thinking = true
+structured_output = true
+streaming = true
+max_context_tokens = 200000
+max_output_tokens = 64000
+verified = "2026-09-02"
+source = "https://console.anthropic.com/docs/en/build-with-claude/extended-thinking"
+
+[[models]]
+id = "claude-sonnet-4-5"
+display = "Claude Sonnet 4.5"
+thinking = true
+structured_output = true
+streaming = true
+max_context_tokens = 200000
+max_output_tokens = 64000
+verified = "2026-09-02"
+source = "https://console.anthropic.com/docs/en/build-with-claude/extended-thinking"
+
+[[models]]
+id = "claude-opus-4-6"
+display = "Claude Opus 4.6"
+thinking = true
+structured_output = true
+streaming = true
+max_context_tokens = 200000
+max_output_tokens = 128000
+verified = "2026-09-02"
+source = "https://console.anthropic.com/docs/en/build-with-claude/extended-thinking"
+
+[[models]]
+id = "claude-opus-4-5"
+display = "Claude Opus 4.5"
+thinking = true
+structured_output = true
+streaming = true
+max_context_tokens = 200000
+max_output_tokens = 64000
+verified = "2026-09-02"
+source = "https://console.anthropic.com/docs/en/build-with-claude/extended-thinking"
+
+[[models]]
+id = "claude-haiku-4-5"
+display = "Claude Haiku 4.5"
+thinking = true
+structured_output = true
+streaming = true
+max_context_tokens = 200000
+max_output_tokens = 64000
+verified = "2026-09-02"
+source = "https://console.anthropic.com/docs/en/build-with-claude/extended-thinking"

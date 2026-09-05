@@ -1,0 +1,31 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.venv/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Application data (never commit real config, it may hold secrets)
+config.toml
+.env
+*.sqlite3
+*.sqlite3-wal
+*.sqlite3-shm
+
+# Node / web build output
+web/dist/
+web/node_modules/
+node_modules/
+
+# Editors / OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+

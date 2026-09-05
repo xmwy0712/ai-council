@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AI Council</title>
+  <link rel="stylesheet" href="style.css">
+  <script>
+    // Apply the persisted theme before first paint to avoid flashing.
+    try {
+      var saved = JSON.parse(localStorage.getItem("council:theme") || "null");
+      if (saved) {
+        var mode = saved.mode || "light";
+        document.documentElement.dataset.themeMode = mode;
+        if (saved.colors) {
+          var root = document.documentElement.style;
+          Object.keys(saved.colors).forEach(function (key) {
+            root.setProperty(key, saved.colors[key]);
+          });
+        }
+      }
+    } catch (err) { /* corrupt saved theme: fall back to CSS defaults */ }
+  </script>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">AI Council <span class="brand-dot">•</span> 多模型会谈</div>
+    <nav class="top-actions">
+      <button id="btn-home" class="link" type="button" data-i18n="nav.new"></button>
+      <button id="btn-back" class="link hidden" type="button" data-i18n="nav.back"></button>
+      <button id="btn-keys" class="chip" type="button" data-i18n="keys.open"></button>
+      <button id="btn-lang" class="chip" type="button" title="Switch language">EN / 中</button>
+      <select id="theme-select" class="chip" title="主题"></select>
+      <button id="btn-import-theme" class="chip" type="button" data-i18n="theme.import"></button>
+      <button id="btn-export-theme" class="chip" type="button" data-i18n="theme.export"></button>
+      <input id="theme-file" type="file" accept=".json,application/json" class="hidden">
+    </nav>
+  </header>
+
+  <main>
+    <!-- ====================== new session view ====================== -->
+    <section id="view-new" class="view">
+      <div class="card start-card">
+        <h2 data-i18n="new.title"></h2>
+        <form id="new-form">
+          <label data-i18n="new.question" for="question"></label>
+          <textarea id="question" rows="4" placeholder="…"></textarea>
+          <div class="row-between">
+            <label class="file-label chip" for="files" data-i18n="new.files"></label>
+            <input id="files" type="file" multiple class="hidden"
+                   accept=".txt,.md,.json,.csv,text/plain,text/markdown,application/json,text/csv">
+          </div>
+          <ul id="file-list" class="file-list"></ul>
+          <p class="hint" data-i18n="new.hint"></p>
+          <p id="room" class="hint"></p>
+          <div id="new-error" class="banner error hidden"></div>
+          <button id="btn-start" class="primary" type="submit" data-i18n="new.start"></button>
+        </form>
+      </div>
+
+      <div class="card">
+        <h2 data-i18n="list.title"></h2>
+        <div id="session-list" class="session-list"><p class="dim" data-i18n="list.empty"></p></div>
+      </div>
+    </section>
+
+    <!-- ====================== session view ====================== -->
+    <section id="view-session" class="view hidden">
+      <div id="session-banner" class="banner error hidden"></div>
+
+      <div class="card session-head">
+        <div class="head-main">
+          <h2 id="session-question" class="ellipsis"></h2>
+          <div class="row gap">
+            <span id="status-chip" class="status running" data-status="starting"></span>
+            <span id="phase-chip" class="chip"></span>
+            <span id="room-chip" class="chip"></span>
+          </div>
+        </div>
+        <div class="head-actions">
+          <button id="btn-pause" class="chip" type="button" data-i18n="act.pause"></button>
+          <button id="btn-resume" class="chip" type="button" data-i18n="act.resume"></button>
+          <button id="btn-stop" class="chip danger" type="button" data-i18n="act.stop"></button>
+          <select id="policy-select" class="chip" title="failure policy"></select>
+          <label class="chip"><input id="raw-toggle" type="checkbox"> raw</label>
+          <a id="btn-export" class="chip linklike" download data-i18n="act.export"></a>
+        </div>
+      </div>
+
+      <div class="layout">
+        <div class="card digest">
+          <h3 data-i18n="session.proposal"></h3>
+          <div id="digest-proposal" class="proposal"><p class="dim" data-i18n="session.waiting"></p></div>
+          <div id="digest-extra"></div>
+          <div class="meta-row" id="meta-row"></div>
+        </div>
+        <div class="card timeline-card">
+          <h3 data-i18n="session.timeline"></h3>
+          <ol id="timeline" class="timeline"></ol>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- ====================== intervention modal ====================== -->
+  <div id="ask-overlay" class="overlay hidden">
+    <div class="card ask-card">
+      <h3 id="ask-title"></h3>
+      <p id="ask-detail" class="prewrap dim"></p>
+      <div id="ask-body"></div>
+      <div id="ask-error" class="banner error hidden"></div>
+    </div>
+  </div>
+
+  <!-- ====================== keys panel ====================== -->
+  <div id="keys-overlay" class="overlay hidden">
+    <div class="card keys-card">
+      <h3 data-i18n="keys.title"></h3>
+      <p class="hint" data-i18n="keys.desc"></p>
+      <div id="keys-list"></div>
+      <div id="keys-error" class="banner error hidden"></div>
+      <div class="keys-custom">
+        <input id="keys-custom-name" type="text" autocomplete="off" spellcheck="false">
+        <input id="keys-custom-value" type="password" autocomplete="new-password" placeholder="sk-…">
+        <button id="btn-keys-custom" class="chip" type="button" data-i18n="keys.custom.add"></button>
+      </div>
+    </div>
+  </div>
+
+  <footer><span data-i18n="footer"></span></footer>
+  <script src="app.js"></script>
+</body>
+</html>

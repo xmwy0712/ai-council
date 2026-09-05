@@ -1,0 +1,200 @@
+# Changelog
+
+本项目的所有显著变更都记录在此文件中。
+
+格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
+版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
+
+## [Unreleased]
+
+### Added
+
+- **Web UI 模型密钥面板**：顶栏「密钥」——OpenAI / Anthropic / Gemini 三家预设与任意
+  自定义变量名；只写系统钥匙串、绝不回显；来源状态（环境变量 / .env / 钥匙串 / 未配置）
+  实时标注，环境变量遮蔽钥匙串时显式提示。底层新增 `core/secrets.secret_status()`。
+- **Windows 三类分发**：
+  1. `ai-council.exe`——单文件，下载即用（每次启动需自解压）；
+  2. `ai-council-win64.zip`——目录版打包，解压即用、启动无需自解压；
+  3. `AI-Council-Setup-<ver>.exe`——Inno Setup 用户级安装器（免管理员），开始菜单 /
+     桌面快捷方式，安装时一次性展开。
+  脚本：`tools/build_exe.py`（`--onedir` / `--zip`）与 `tools/build_installer.py`
+  （目录产物 + zip + 安装器一步到位）；release 工作流在 `v*` 标签自动产出三者并发布。
+- **Windows 免 Python 安装包**：`tools/build_exe.py`（PyInstaller，单文件 ~20MB）产出
+  `dist/ai-council.exe`；新增 `pip install ".[packaging]"` 可选依赖；release 工作流在打
+  `v*` 标签时自动在 windows-latest 上构建 exe、跑一场 fake 会谈冒烟后随 GitHub Release 发布。
+  包内数据（Web 静态资源 / registry TOML / 提示词模板）通过 `--collect-data council` 显式收集。
+
+### Fixed
+
+- **冻结版 exe 在 Windows GBK 控制台崩溃**：打印 `⚠`/`✓` 等符号触发 UnicodeEncodeError。
+  CLI 入口现强制 stdout/stderr 为 UTF-8（`errors="replace"`）。
+
+### 测试
+
+- `council run` 与 `council serve`（静态资源 / 主题 / 完整会话）均以构建产物做过端到端冒烟。
+- Web 密钥 API 新增 7 项离线测试（keyring 打桩）。
+
+## [1.0.0] - 2026-09-02
+
+第六个里程碑（M6）：CI、打包与 v1.0.0 发布。
+
+### Added
+
+- **GitHub Actions CI**（`.github/workflows/ci.yml`）：quality job（`ruff format --check`、
+  `ruff check`、`mypy --no-incremental`）；test job 矩阵（Python 3.11 / 3.12 / 3.13 ×
+  ubuntu / windows，测试全部离线、只用 fake 适配器）；build job（`uv build` → 校验
+  wheel 内含 `council/web/static` 与版本元数据、sdist 含 tests/docs → 全新 venv 安装
+  wheel 后跑一次 fake `council run` 冒烟 → 上传 dist artifact）。
+- **发布工作流**（`.github/workflows/release.yml`）：推送 `v*` 标签即 `uv build` 并创建
+  GitHub Release，附带 wheel 与 sdist。
+- **版本单源**：`pyproject.toml` 改用 hatch dynamic version（`path = council/__init__.py`），
+  `council.__version__ = "1.0.0"` 是唯一版本源；API meta 同源；打包一致性测试守护
+  metadata == attr == api。
+- **打包修正**：移除 wheel `force-include`——`council/web/static` 位于包树内会自动随包，
+  force-include 反而导致「同一路径二次写入」构建报错；wheel / sdist 构建与全新安装冒烟通过。
+
+### Changed
+
+- 项目版本升至 `1.0.0`；classifier 由 Alpha 改为 Production/Stable。
+
+### 测试
+
+- 新增 3 项打包一致性测试。合计 200 项（1 跳过）。
+
+## [0.5.0] - 2026-09-02
+
+第五个里程碑（M5）：Web UI、CSS 变量主题与 i18n。
+
+### Added
+
+- **Web UI（`council serve`，FastAPI + WebSocket）**：与会话同进程运行同一套引擎——
+  HTTP 只做建会话/动作/导出转发，事件经 WebSocket 实时推送（先订阅、后按 `since=seq`
+  回放并按 seq 去重；`CALL_CHUNK` 不落库只走直播）。暂停 / 恢复 / 终止 / 运行中切换
+  失败策略全部可用；干预面板（`ask_user`、选主案、人工决定）以 WS 问答票据往返；
+  无人值守时保守兜底（剔除失败节点 / 取首个候选），会话绝不因没人回答而挂死。
+- **附件经数据区上传**：文件内容以 JSON 提交，服务端先落应用数据目录、由 M4 附件门
+  （扩展名 + 内容嗅探）在 POST 内同步校验，不合格立即 400，不产生幽灵会话；按会话
+  子目录存放以保留原始文件名。
+- **导出即下载**：`GET /api/sessions/{id}/export` 渲染净化后的 Markdown 流式返回
+  （`raw` 参数绕过净化），浏览器下载——服务端不写用户路径。
+- **CSS 变量主题**：浅色 / 深色 / 高对比三套内置主题是纯数据 JSON；变量完整性、色值
+  合法性、WCAG 对比度均有离线测试；主题可导入 / 导出并持久化到浏览器本地。
+- **i18n zh/en**：界面文案走 JSON locale，双语 key 集合一致性有离线测试。
+- **EventStore 线程屏障**：`threading.Lock` 保护 sqlite 连接，`close()` 等所有在飞 SQL
+  完成——修复「任务取消后仍运行的 worker 与连接关闭竞争」导致的 Windows
+  access violation。
+
+### Changed
+
+- 不变量不变：Web 与会话同进程，事件日志仍是唯一事实源；resume 依旧只重发未完成调用。
+
+### 测试
+
+- 新增 12 项：API / WebSocket 直播与回放 / 暂停恢复与终止 / ask_user 无人值守兜底 /
+  附件 fail-fast / 导出 / 双语 key 与主题数据矩阵。合计 197 项（1 跳过）。
+
+## [0.4.0] - 2026-09-02
+
+第四个里程碑（M4）：约束层——附件限制、单一方案校验、净化管线、导出。
+
+### Added
+
+- **附件读取**（`core/attachments.py`）：按用户要求放开机器可读类型——默认允许
+  `.txt / .md / .json / .csv`（`[attachments].allowed_suffixes` 可配）；扩展名+
+  内容双重校验（`.json` 必须严格可解析、`.csv` 必须可被 csv 模块解析、UTF-8
+  严格解码含 BOM、NUL 字节视为二进制伪装），拒绝符号链接/目录/越权大小与数量；
+  超上下文预算按「头部+尾部+中间省略标记」截断并在 UI/提示词明示。
+- **附件进数据区**：全部内容经 `<data_zone>` 注入提示词；`SessionCreated` 只记
+  文件名，续跑时需用 `--file` 重新提供（缺失则明确报错，不静默丢上下文）。
+- **单一方案校验**（`core/single_plan.py`）：提案/修订输出在结构合法后仍须通过
+  「唯一方案」门——并列方案标题（方案一/二、选项 A/B、Plan B、备选、或者可以、
+  两种思路等）命中即自动重新提问并给出「合并为一个方案」的严格修复提示（最多
+  2 次），仍违规则拒绝该输出并按失败策略处理；代码块/行内代码/URL 受保护区
+  豁免，引用示例不会误伤。
+- **净化管线**（`council/sanitize/`）：规则表驱动、逐条可开关
+  （`[sanitize].disabled_rules`），去除装饰性 Markdown 噪声/空行/行尾空格/
+  套话开头结尾/表情堆砌，规范中英文间距与全角半角标点；代码块、行内代码、
+  URL、列表与表格语义全程保护；事件日志永远保留 raw_text，净化只是视图。
+- **导出**：`council export <session> <path.md>`（默认净化，`--raw` 走原始）——
+  用户主动指定的唯一写入点，输出终稿/执行步骤/假设/风险/待确认问题/人工决定/
+  收敛过程。
+
+### Changed
+
+- `council run/resume` 新增 `--file` 附件入口。
+
+### 测试
+
+- 新增约 40 项：附件规则矩阵（伪装扩展名/非 UTF-8/NUL/符号链接/限额/截断）、
+  单一方案 golden 与自动纠正回路、净化 golden 逐规则、导出端到端。合计 185 项。
+
+## [0.3.0] - 2026-09-02
+
+第三个里程碑（M3）：韧性加固。
+
+### Fixed
+
+- **`policy = pause` 现在真的冻结**：`_pause_and_wait` 此前从不清除暂停门，
+  已打开的门让等待立即返回——冻结等于没冻。
+
+### Added
+
+- **断网自动续跑**：传输型失败（network/rate_limit/timeout）导致整阶段阻塞
+  时，引擎在一个冷却周期后做健康探测并重新接纳被剔除节点，就地重试该阶段；
+  探测仍失败则落盘退出交给 `council resume`。`PhaseBlocked`/`NodeUnavailable`
+  以 `retryable` 标记区分传输型与人工型阻塞。
+- **熔断器抽象**：`core/breaker.py` 独立连败计数（触发/复位/半开语义可单独
+  单测）；事件日志中的 degraded 状态仍是持久事实。
+- **干预动作补齐测试**：WAIT（冻结后进程内恢复续跑）、SWITCH_ADAPTER（重建
+  适配器并恢复）、运行中切换失败策略立即生效。
+
+### 测试
+
+- 新增 14 项韧性测试：空闲卡死检测（idle 超时分类）、流中断后续跑只重发未
+  完成调用（不重复计费）、断网阻塞→探测→自动恢复、持续断网落盘退出、
+  熔断器矩阵。合计 148 项测试。
+
+## [0.2.0] - 2026-09-02
+
+第二个里程碑（M2）：真实适配器与数据化注册表。
+
+### Added
+
+- **真实适配器族**：`openai_api`（含任意 OpenAI 兼容端点，自定义 `base_url`）、`anthropic_api`、`google_api`、`cli_session`（Codex CLI / Claude Code / Antigravity 本地登录态）、`generic_http`（用户自定义请求模板，URL / headers / body 模板 / 响应 JSONPath）。
+- **cli_session 安全约束**：参数一律数组传递（无 `shell=True`），强制各家只读/禁工具/非交互参数（Codex `--sandbox read-only --ephemeral`、Claude `--disallowedTools`、Antigravity `--mode=plan`），只读临时运行目录，超时终止整个进程树；安全参数固化在代码中，不可由用户数据覆盖。
+- **模型注册表**：`council/registry/*.toml` 数据化模型 ID、能力、思考等级映射（OpenAI `reasoning_effort` 枚举、Anthropic `budget_tokens`、Gemini `thinkingLevel`/`thinkingBudget` 按代际选择）；用户可在 `<数据目录>/registry/*.toml` 覆盖或新增，引擎零改动。
+- **密钥管理**：解析顺序 环境变量 → `.env` → OS keyring；`council key set/delete/check` 只写系统钥匙串、绝不回显值；`redact()` 供日志脱敏；`secret_fingerprint` 供「同账号」比较而不落地明文。
+- **厂商核实文档**：`docs/PROVIDERS.md` 记录全部参数名、取值范围、官方文档链接与核实日期（2026-09-02）；查不到的项（adaptive effort 枚举、官方定价等）明确列为 TODO，绝未编造。
+- **配置增强**：`nodes.settings` 承载适配器专属参数；`config-check` 与 `run` 输出注册表校验警告（未知模型、不支持的思考等级、cli_session 缺 profile）。
+
+### Changed
+
+- P7 统计在注册表提供已核实定价时输出成本，否则 `cost_usd` 保持 `None`（不编数字）。
+
+### 测试
+
+- 新增 48 项离线测试（httpx MockTransport + 假 CLI 子进程），覆盖三家 API 的流式解析/参数构造/错误分类、`cli_session` 注入防护与超时杀树、注册表合并与校验、密钥解析与脱敏。
+
+## [0.1.0] - 2026-09-02
+
+首个里程碑（M1）：引擎骨架端到端可用。
+
+### Added
+
+- **会议状态机**：P0 上下文 → P1 并行独立提案 → P2 Judge 选主案（可切人工）→ P3 并行独立评审 → P4 round-robin 辩论 → P5 裁定 → P6 完整修订 → 循环至 PASS / max_rounds / 收敛停滞 → P7 终稿与统计。阶段流转只读结构化枚举字段，非法 JSON 最多修复 2 次后升级为 `NEED_USER_DECISION`，绝不静默降级。
+- **事件溯源存储**：SQLite（WAL、`synchronous=FULL`、单事务追加）事件日志；`(session_id, phase, round, node_id, attempt)` 幂等键（辩论轮带 `tag`）；`council resume` 回放复用已完成调用，只重发 in-flight / 失败调用。
+- **容错**：错误六分类（auth / rate_limit / timeout / content_refusal / network / contract），指数退避加抖动重试，节点熔断与健康探测自动回归，`continue / pause / ask_user` 三策略可在运行中切换，低于 `min_quorum` 强制冻结。
+- **干预协议**：`InterventionHandler`（on_failure / on_select / on_decision），CLI 用 stdin 实现，Web UI 之后可无侵入接入。
+- **配置系统**：单一 `config.toml`（pydantic 校验、`extra=forbid`、语义校验、schema_version 迁移、指纹与人类可读 diff）；Judge 与参与者重合直接报错，同账号同模型给出独立性警告。
+- **提示词与注入防护**：模板文件化（`{{placeholder}}` 渲染，未知占位符抛错），`<data_zone>` 边界包裹与闭合标签转义。
+- **输出契约**：Proposal / Selection / Review / Debate / Verdict / Revision 六套结构化契约与修复回路；`NEED_USER_DECISION` 强制携带 `question_for_user`。
+- **CLI**：`council run` / `resume` / `sessions` / `config-check`；零配置默认使用内置 fake 适配器，克隆后无需任何密钥即可跑通完整八阶段。
+- **测试**：84 项测试全部离线（fake 适配器，无真实网络），覆盖修复回路、失败策略、熔断、法定人数、断点续跑、配置校验与 CLI 冒烟。
+
+### Security
+
+- 密钥不入仓库：配置模型不包含任何密钥字段；真实密钥仅存 OS keyring 或已 gitignore 的 `.env`（M2 接入）。
+- 附件与模型输出一律视为数据：数据区包裹 + 系统提示声明 + 闭合标签转义。
+
+[Unreleased]: https://github.com/xmwy0712/ai-council/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/xmwy0712/ai-council/releases/tag/v0.1.0

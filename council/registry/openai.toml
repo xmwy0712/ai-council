@@ -1,0 +1,50 @@
+# OpenAI 及任意 OpenAI 兼容端点。
+# 参数名与取值范围见 docs/PROVIDERS.md（核实 2026-09-02）。
+
+[provider]
+id = "openai_api"
+display = "OpenAI"
+base_url = "https://api.openai.com/v1"
+secret_env = "OPENAI_API_KEY"
+docs = "https://developers.openai.com/api/reference/resources/chat/subresources/completions/methods/create"
+
+[provider.thinking]
+style = "enum_effort"
+param = "reasoning_effort"
+
+[provider.thinking.levels]
+low = "low"
+medium = "medium"
+high = "high"
+
+[[models]]
+id = "gpt-5.2"
+display = "GPT-5.2"
+thinking = true
+structured_output = true
+streaming = true
+max_context_tokens = 400000
+max_output_tokens = 128000
+verified = "2026-09-02"
+source = "https://developers.openai.com/api/reference/resources/chat/subresources/completions/methods/create"
+
+[[models]]
+id = "gpt-5.1"
+display = "GPT-5.1"
+thinking = true
+structured_output = true
+streaming = true
+max_context_tokens = 400000
+max_output_tokens = 128000
+verified = "2026-09-02"
+source = "https://developers.openai.com/api/reference/resources/chat/subresources/completions/methods/create"
+
+[[models]]
+id = "gpt-5.2-chat-latest"
+display = "GPT-5.2 Chat"
+thinking = true
+structured_output = true
+streaming = true
+max_output_tokens = 16000
+verified = "2026-09-02"
+source = "https://community.openai.com/t/more-detailed-information-about-models/1373598"

@@ -1,0 +1,25 @@
+{
+  "id": "light",
+  "label": "浅色",
+  "mode": "light",
+  "colors": {
+    "--bg": "#f6f7f9",
+    "--bg-elev": "#ffffff",
+    "--bg-panel": "#eef1f5",
+    "--border": "#d7dce3",
+    "--text": "#1c2333",
+    "--text-dim": "#4b5668",
+    "--text-faint": "#8a93a6",
+    "--accent": "#2563eb",
+    "--accent-contrast": "#ffffff",
+    "--accent-soft": "#dbe7fe",
+    "--ok": "#1a7f37",
+    "--ok-soft": "#d9f0e1",
+    "--warn": "#9a6700",
+    "--warn-soft": "#fff3d6",
+    "--err": "#c62828",
+    "--err-soft": "#fbe3e3",
+    "--code-bg": "#eef1f5",
+    "--code-text": "#243b53"
+  }
+}

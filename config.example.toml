@@ -1,0 +1,178 @@
+# AI Council 配置示例
+#
+# 用法：复制到应用数据目录（Windows: %LOCALAPPDATA%\ai-council\config.toml），
+# 或用 `council run --config ./config.toml "问题"` 指定。
+# 校验：`council config-check --config ./config.toml`
+#
+# 本示例使用内置 fake 适配器：无需任何密钥即可跑通完整八阶段，
+# 用于快速验证安装。真实厂商适配器在 M2 里程碑接入。
+
+schema_version = 1
+
+[council]
+max_nodes = 5          # 上限 5，硬约束
+active_nodes = 3        # 2..5，必须等于下方启用的参与者数量
+max_rounds = 8          # P3–P6 循环上限
+debate_rounds = 2       # 每轮评审内的辩论轮数（0 = 跳过辩论）
+language = "zh-CN"      # 影响提示词模板与 UI 文案
+
+[timeout]
+connect_s = 30          # 建立连接超时
+idle_s = 90             # 无新增输出即判定卡死
+total_s = 900           # 单次调用总时长上限
+
+[failure]
+policy = "ask_user"     # continue | pause | ask_user，运行中可切换
+min_quorum = 2          # 可用参与者低于该值强制冻结，不允许单人出终稿
+max_retries = 3         # 单次调用内的重试次数（仅限可重试错误）
+backoff = "exponential_jitter"
+circuit_threshold = 3   # 连续失败达该值 → 节点熔断（DEGRADED）
+circuit_cooldown_s = 60 # 熔断后的健康探测间隔
+
+[attachments]
+max_file_mib = 1.0      # 单文件上限
+max_total_mib = 4.0     # 单次会话累计上限
+max_files = 10          # 文件数上限
+allowed_suffixes = [".txt", ".md", ".json", ".csv"]
+
+[budget]
+context_tokens = 60000      # 上下文预算
+reserve_output_tokens = 4000
+max_output_tokens = 8000
+max_chars_review = 4000     # 评审字数上限
+max_chars_debate = 1200     # 辩论单条字数上限
+temperature = 0.2
+persist_chunks = true       # 是否把流式增量写入事件日志
+
+# --------------------------------------------------------------- 参与者节点
+# adapter：fake（内置）/ openai_api / anthropic_api / google_api /
+#          cli_session / generic_http（后五者于 M2 提供）
+# 每个节点都可以用 overrides 覆盖任意全局参数。
+
+[[nodes]]
+id = "n1"
+display = "智囊 A"
+adapter = "fake"
+model = "fake/n1"
+thinking = "high"       # 取值必须来自 registry（M2）
+role = "participant"
+color = "#3b82f6"
+
+[[nodes]]
+id = "n2"
+display = "智囊 B"
+adapter = "fake"
+model = "fake/n2"
+role = "participant"
+color = "#10b981"
+
+[[nodes]]
+id = "n3"
+display = "智囊 C"
+adapter = "fake"
+model = "fake/n3"
+role = "participant"
+color = "#f59e0b"
+# 节点粒度覆盖示例：
+# [nodes.overrides]
+# total_s = 600
+# temperature = 0.1
+# max_retries = 5
+
+# ------------------------------------------------------------------ Judge
+# Judge 必须是独立节点：node_id 不得出现在参与者中；
+# 与某参与者同账号同模型会得到独立性警告。
+# 请选择高强度推理模型，思考等级建议拉满。
+
+[[nodes]]
+id = "judge"
+display = "Judge"
+adapter = "fake"
+model = "fake/judge"
+thinking = "high"
+role = "judge"
+color = "#8b5cf6"
+
+[judge]
+enabled = true
+node_id = "judge"
+auto_select = true      # false = 人工选择主案（同样落盘为 UserDecision）
+warn_if_weak_model = true
+
+
+# ============================================================ 真实厂商示例
+# 取消注释后替换为你的模型；密钥不要写在这里——
+# 用 `council key set OPENAI_API_KEY` 存入系统钥匙串，或写数据目录的 .env。
+
+# --- OpenAI / 任意 OpenAI 兼容端点（base_url 可指向中转） ---
+# [[nodes]]
+# id = "gpt"
+# display = "GPT"
+# adapter = "openai_api"
+# model = "gpt-5.2"            # 来自 council/registry/openai.toml
+# thinking = "high"            # low | medium | high → reasoning_effort
+# role = "participant"
+# color = "#3b82f6"
+# [nodes.settings]
+# base_url = "https://api.openai.com/v1"     # 可改成你的中转地址
+# secret_env = "OPENAI_API_KEY"              # 密钥名，不是密钥本身
+
+# --- Anthropic ---
+# [[nodes]]
+# id = "claude"
+# display = "Claude"
+# adapter = "anthropic_api"
+# model = "claude-sonnet-4-6"
+# thinking = "high"            # → thinking.budget_tokens（档位在注册表，可改）
+# role = "participant"
+# color = "#d97706"
+
+# --- Google Gemini ---
+# [[nodes]]
+# id = "gemini"
+# display = "Gemini"
+# adapter = "google_api"
+# model = "gemini-3.5-flash"
+# thinking = "high"            # → thinkingLevel（3+）/ thinkingBudget（2.5，按模型自动选）
+# role = "participant"
+# color = "#10b981"
+
+# --- 本地 CLI 登录态（Codex / Claude Code / Antigravity，复用网站授权） ---
+# [[nodes]]
+# id = "codex"
+# display = "Codex"
+# adapter = "cli_session"
+# model = "gpt-5.2-codex"
+# role = "participant"
+# color = "#6366f1"
+# [nodes.settings]
+# cli = "codex"                # codex | claude | agy（强制只读/禁工具/非交互参数）
+
+# [[nodes]]
+# id = "agy"
+# display = "Antigravity"
+# adapter = "cli_session"
+# model = "Gemini 3.5 Flash (High)"
+# role = "participant"
+# color = "#0ea5e9"
+# [nodes.settings]
+# cli = "agy"
+
+# --- 自定义 HTTP 模板（未内置的厂商） ---
+# [[nodes]]
+# id = "custom"
+# display = "自定义厂商"
+# adapter = "generic_http"
+# model = "kimi-k2"
+# role = "participant"
+# color = "#f43f5e"
+# [nodes.settings]
+# url = "https://api.moonshot.cn/v1/chat/completions"
+# [nodes.settings.headers]
+# Authorization = "Bearer ${MOONSHOT_API_KEY}"   # ${…} 从密钥库解析
+# Content-Type = "application/json"
+# [nodes.settings]
+# body_template = '{"model": "{model}", "messages": [{"role": "user", "content": {prompt_json}}]}'
+# response_path = "choices[0].message.content"
+# usage_input_path = "usage.prompt_tokens"
+# usage_output_path = "usage.completion_tokens"
