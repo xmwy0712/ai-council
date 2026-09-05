@@ -209,9 +209,7 @@ def test_unknown_session_and_bad_action_are_rejected(tmp_path: Path) -> None:
         # live. Poll briefly instead of asserting on the first response.
         deadline = time.time() + 5.0
         while time.time() < deadline:
-            stopped = client.post(
-                f"/api/sessions/{session_id}/actions", json={"action": "stop"}
-            )
+            stopped = client.post(f"/api/sessions/{session_id}/actions", json={"action": "stop"})
             if stopped.status_code == 409:
                 break
             time.sleep(0.05)
