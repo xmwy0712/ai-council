@@ -338,6 +338,12 @@ class SessionHub:
             self.error = f"{type(err).__name__}: {err}"
             message["status"] = "error"
             message["reason"] = self.error
+        # run() has returned: the store already carries the terminal status and
+        # no engine work remains. Drop the reference NOW so has_live_engine()
+        # turns false immediately -- the awaits below (publish, file cleanup,
+        # adapter close) must not keep a finished session looking live, or a
+        # racing resume/stop on a completed session gets 409/200 wrongly.
+        self.engine = None
         # Keep the cheap status column honest even for abnormal endings.
         try:
             await self._store.set_status(self.session_id, message["status"])
