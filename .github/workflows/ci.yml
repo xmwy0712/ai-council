@@ -31,6 +31,9 @@ jobs:
     name: pytest (${{ matrix.os }} / py${{ matrix.python }})
     strategy:
       fail-fast: false
+      # Shared GitHub runners get CPU-starved with 6 pytest jobs at once,
+      # which flakes timing-sensitive tests. Cap the matrix concurrency.
+      max-parallel: 2
       matrix:
         os: [ubuntu-latest, windows-latest]
         python: ["3.11", "3.12", "3.13"]

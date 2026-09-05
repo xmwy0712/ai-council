@@ -77,10 +77,12 @@ async def test_proposals_are_dispatched_in_parallel(tmp_path) -> None:
         if event.type is EventType.PHASE_COMPLETED and event.payload.phase == "P1":
             started["t1"] = asyncio.get_running_loop().time()
 
-    harness = await make_engine(tmp_path, sink=sink, delay_s=0.2)
+    harness = await make_engine(tmp_path, sink=sink, delay_s=0.3)
     await harness.engine.run("s1", "问题")
     elapsed = started["t1"] - started["t0"]
-    assert elapsed < 0.45, f"P1 串行执行了（{elapsed:.2f}s）"
+    # 3 x 0.3s: parallel ~0.35s, serial ~0.9s. 0.75 keeps catching serial
+    # execution while tolerating scheduler jitter on loaded CI runners.
+    assert elapsed < 0.75, f"P1 串行执行了（{elapsed:.2f}s）"
 
 
 # -------------------------------------------------------------- revision loop
