@@ -1,7 +1,10 @@
 # Moonshot Kimi（OpenAI 兼容端点）
-# 核实 2026-09-05：K3 / K2.7 / K2.6 在役；K2 全系已下线。
-# Kimi 的思考开关是嵌套对象 thinking:{type} —— 旋钮只支持标量，
-# 因此本厂商不声明思考档位（thinking_style = "none"），由服务端按默认处理。
+# 核实 2026-09-06（官方思考模型文档 platform.moonshot.cn/docs/guide/use-thinking-models）：
+# - kimi-k3：始终推理，顶层 reasoning_effort = low / high / max（默认 max），
+#   不应再传 K2.x 的 thinking 参数；
+# - kimi-k2.7-code：始终思考，无 reasoning_effort；
+# - kimi-k2.6 / kimi-k2.5：嵌套 thinking 可开关，无标量档位；
+# - K2 已是遗留档位。kimi-k3-thinking / kimi-k2-turbo / kimi-k1.6 为不存在的 id，不收录。
 
 [provider]
 id = "moonshot"
@@ -9,34 +12,28 @@ display = "Moonshot Kimi"
 base_url = "https://api.moonshot.cn/v1"
 secret_env = "MOONSHOT_API_KEY"
 adapter = "openai_api"
-docs = "https://platform.moonshot.cn/docs/pricing/chat"
+docs = "https://platform.moonshot.cn/docs/guide/use-thinking-models"
 
 [[models]]
 id = "kimi-k3"
 display = "Kimi K3"
 thinking = true
-max_context_tokens = 262144
-max_output_tokens = 65536
-verified = "2026-09-05"
-source = "https://platform.moonshot.cn/docs/pricing/chat"
+max_context_tokens = 1048576
+max_output_tokens = 131072
+thinking_style = "enum_effort"
+param = "reasoning_effort"
+levels = { low = "low", high = "high", max = "max" }
+verified = "2026-09-06"
+source = "https://platform.moonshot.cn/docs/guide/use-thinking-effort"
 
 [[models]]
-id = "kimi-k3-thinking"
-display = "Kimi K3 Thinking"
-thinking = true
-max_context_tokens = 262144
-max_output_tokens = 65536
-verified = "2026-09-05"
-source = "https://platform.moonshot.cn/docs/pricing/chat"
-
-[[models]]
-id = "kimi-k2.7"
-display = "Kimi K2.7"
+id = "kimi-k2.7-code"
+display = "Kimi K2.7 Code"
 thinking = true
 max_context_tokens = 262144
 max_output_tokens = 32768
-verified = "2026-09-05"
-source = "https://platform.moonshot.cn/docs/pricing/chat"
+verified = "2026-09-06"
+source = "https://platform.moonshot.cn/docs/guide/use-thinking-models"
 
 [[models]]
 id = "kimi-k2.6"
@@ -44,8 +41,8 @@ display = "Kimi K2.6"
 thinking = true
 max_context_tokens = 262144
 max_output_tokens = 32768
-verified = "2026-09-05"
-source = "https://platform.moonshot.cn/docs/pricing/chat"
+verified = "2026-09-06"
+source = "https://platform.moonshot.cn/docs/guide/use-thinking-models"
 
 [[models]]
 id = "kimi-k2.5"
@@ -53,23 +50,14 @@ display = "Kimi K2.5"
 thinking = true
 max_context_tokens = 262144
 max_output_tokens = 32768
-verified = "2026-09-05"
-source = "https://platform.moonshot.cn/docs/pricing/chat"
+verified = "2026-09-06"
+source = "https://platform.moonshot.cn/docs/guide/use-thinking-models"
 
 [[models]]
-id = "kimi-k2-turbo"
-display = "Kimi K2 Turbo"
-thinking = false
-max_context_tokens = 131072
-max_output_tokens = 16384
-verified = "2026-09-05"
-source = "https://platform.moonshot.cn/docs/pricing/chat"
-
-[[models]]
-id = "kimi-k1.6"
-display = "Kimi K1.6"
+id = "kimi-k2"
+display = "Kimi K2（遗留）"
 thinking = true
 max_context_tokens = 131072
 max_output_tokens = 16384
-verified = "2026-09-05"
+verified = "2026-09-06"
 source = "https://platform.moonshot.cn/docs/pricing/chat"
