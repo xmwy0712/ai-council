@@ -226,12 +226,14 @@ def test_local_servers_need_no_secret() -> None:
 
 
 def test_deepseek_effort_maps_medium_to_high() -> None:
-    """官方枚举为 low / high(默认) / max：medium 向上映射，high 顶到 max。"""
+    """官方枚举为 low / high(默认) / max：无 medium 档，medium 请求应拒绝。"""
     registry = Registry.load()
-    medium = registry.translate_thinking("deepseek", "deepseek-v4-flash", "medium")
+    # 官方核实 2026-09-06：deepseek-v4 仅 low / high / max 三档，medium 不存在
+    assert registry.translate_thinking("deepseek", "deepseek-v4-flash", "medium") is None
     high = registry.translate_thinking("deepseek", "deepseek-v4-flash", "high")
-    assert medium is not None and medium.value == "high"
-    assert high is not None and high.value == "max"
+    assert high is not None and high.value == "high"
+    max_ = registry.translate_thinking("deepseek", "deepseek-v4-flash", "max")
+    assert max_ is not None and max_.value == "max"
 
 
 def test_dashscope_thinking_budget_carries_extra() -> None:
@@ -254,11 +256,11 @@ def test_ollama_effort_is_native() -> None:
 
 
 def test_nested_object_knobs_stay_none() -> None:
-    """GLM / Kimi / OpenRouter / vLLM 的思考开关是嵌套对象，旋钮不翻译。"""
+    """GLM 4.x / Kimi K2.x / OpenRouter / vLLM 的思考开关是嵌套对象，旋钮不翻译。"""
     registry = Registry.load()
     for provider_id, model_id in (
-        ("zhipu", "glm-5.2"),
-        ("moonshot", "kimi-k3"),
+        ("zhipu", "glm-4.6"),
+        ("moonshot", "kimi-k2.6"),
         ("openrouter", "openai/gpt-6-astra"),
         ("vllm", "qwen3-32b"),
     ):

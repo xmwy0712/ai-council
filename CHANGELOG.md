@@ -5,6 +5,30 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.1.1] - 2026-09-06
+
+补丁版：思考档位全面注册表驱动（Claude 5 自适应思考、Kimi/Spark 档位核实）、光效与交互打磨。
+
+### Added
+
+- **Claude 5 系自适应思考**：`output_config.effort` + `thinking:{type:"adaptive"}`——4.7+ 收到 `budget_tokens` 会直接 400，5 系改用 effort 五档（low/medium/high/xhigh/max）控制思考深度；4.x 仍走 token 预算。
+- **思考档位全量注册表驱动**：网页端阵容编辑器下拉框与后端校验均按各模型声明动态生成，不再假定 low/medium/high 三档（GPT-6 五档、GLM-5.3 三档、DeepSeek 三档、Gemini Flash 含 MINIMAL 等）；未知档位返回可选列表。
+- **行星遮挡可交互区域**：光效行星/拖尾/恒星绕入卡片与顶栏矩形即被擦除，不再浮在内容之上；恒星跟随光标常显。
+- **静态资源缓存击穿参数**：`?v=` 随版本递增，代码更新后浏览器立即拿到新版。
+
+### Changed
+
+- **Kimi 官方档位核实**（2026-09-06）：kimi-k3 为三档 `reasoning_effort`（low/high/max），剔除不存在的 k3-thinking/k2-turbo/k1.6，k2.7 修正为 k2.7-code；K2 标记为遗留档位。
+- **Meta Muse Spark 档位核实**：Spark 1.1/1.2/1.3 补五档 reasoning_effort（minimal→xhigh）；聚合平台统一旋钮说明入档。
+- 毛玻璃卡片/顶栏透明度提升（68%→55%、72%→60%），光晕居中压层使模糊有物可依；只读思考框不再空白。
+- `docs/PROVIDERS.md` 增补「思考档位对照」表（各厂商参数/可用档位/约束，核实 2026-09-06）。
+- 项目版本升至 `1.1.1`。
+
+### Fixed
+
+- 阵容编辑器 `levelsFor` 暂时性死区导致整体渲染失败——函数先定义后使用。
+- 帮助气泡改用 JS 委托控制显隐，规避原生弹出层卡住 `:hover` 残留问题。
+
 ## [1.1.0] - 2026-09-06
 
 第七个里程碑：多厂商注册表扩展、Web 设置中心与可视化打磨。

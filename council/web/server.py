@@ -161,7 +161,7 @@ def create_app(
 
         保留 ETag：内容没变时 304 依旧生效，只禁掉「猜测缓存」。
         """
-        response = await call_next(request)
+        response = cast(Response, await call_next(request))
         path = request.url.path
         if path == "/" or path.endswith((".js", ".css", ".html", ".json")):
             response.headers["Cache-Control"] = "no-cache"
@@ -329,9 +329,8 @@ def create_app(
     async def delete_session(session_id: str, request: Request) -> dict[str, bool]:
         manager = _manager(request)
         # 运行中的会话先终止并卸载，再抹掉存储
-        if manager.hub(session_id) is not None:
+        if (hub := manager.hub(session_id)) is not None:
             try:
-                hub = manager.hub(session_id)
                 hub.stop()
             except HubError:
                 pass
