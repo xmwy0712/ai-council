@@ -29,3 +29,6 @@ node_modules/
 .DS_Store
 Thumbs.db
 
+
+# Workbuddy dev notes (private scratch)
+.workbuddy/

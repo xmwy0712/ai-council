@@ -19,7 +19,7 @@ from dataclasses import dataclass, field
 from importlib.resources import files
 from pathlib import Path
 from types import MappingProxyType
-from typing import Any, Final
+from typing import Any, Final, TypeAlias
 
 from ..core.paths import data_dir
 
@@ -28,6 +28,7 @@ __all__ = [
     "ProviderSpec",
     "Registry",
     "RegistryError",
+    "ThinkingExtra",
     "ThinkingSpec",
     "ThinkingTranslation",
     "get_registry",
@@ -36,6 +37,11 @@ __all__ = [
 _KNOWN_THINKING_STYLES: Final = frozenset(
     {"enum_effort", "budget_tokens", "thinking_budget", "thinking_level", "none"}
 )
+
+# 伴生字段：某些厂商的思考开关需要同时发送一个固定伙伴参数
+# （例如阿里 DashScope 的 enable_thinking），它们不属于「档位→值」的映射，
+# 因此单独挂在 ThinkingSpec.extra 上随请求一起发出。
+ThinkingExtra: TypeAlias = MappingProxyType[str, Any]
 
 
 class RegistryError(RuntimeError):
@@ -49,6 +55,7 @@ class ThinkingSpec:
     style: str = "none"
     param: str = ""
     levels: MappingProxyType[str, str | int] = field(default_factory=lambda: MappingProxyType({}))
+    extra: ThinkingExtra = field(default_factory=lambda: MappingProxyType({}))
 
 
 @dataclass(frozen=True)
@@ -56,6 +63,7 @@ class ThinkingTranslation:
     style: str
     param: str
     value: str | int
+    extra: ThinkingExtra = field(default_factory=lambda: MappingProxyType({}))
 
 
 @dataclass(frozen=True)
@@ -85,6 +93,20 @@ class ProviderSpec:
     docs: str = ""
     thinking: ThinkingSpec = field(default_factory=ThinkingSpec)
     models: MappingProxyType[str, ModelSpec] = field(default_factory=lambda: MappingProxyType({}))
+    # 本地/自建端点（Ollama、vLLM 等）不需要密钥
+    secret_required: bool = True
+    # 声明「本厂商用哪个适配器协议实现」——加上它，
+    # 新增一家 OpenAI 兼容厂商就只需一份 TOML，零 Python 代码。
+    adapter: str = ""
+
+
+def _extra_from(raw: Any) -> ThinkingExtra:
+    """伴生字段表：随思考参数一起发出的固定伙伴参数。"""
+    if raw is None:
+        return MappingProxyType({})
+    if not isinstance(raw, dict):
+        raise RegistryError("thinking.extra 必须是一张表")
+    return MappingProxyType({str(key): value for key, value in raw.items()})
 
 
 def _thinking_from(raw: dict[str, Any]) -> ThinkingSpec:
@@ -100,7 +122,10 @@ def _thinking_from(raw: dict[str, Any]) -> ThinkingSpec:
             raise RegistryError(f"thinking.levels[{key!r}] 必须是字符串或整数")
         levels[str(key)] = value
     return ThinkingSpec(
-        style=style, param=str(raw.get("param", "")), levels=MappingProxyType(levels)
+        style=style,
+        param=str(raw.get("param", "")),
+        levels=MappingProxyType(levels),
+        extra=_extra_from(raw.get("extra")),
     )
 
 
@@ -115,6 +140,7 @@ def _model_from(raw: dict[str, Any], provider: str) -> ModelSpec:
                 "style": raw["thinking_style"],
                 "param": raw.get("param", ""),
                 "levels": raw.get("levels") or {},
+                "extra": raw.get("extra"),
             }
         )
     return ModelSpec(
@@ -157,6 +183,8 @@ def _provider_from(raw: dict[str, Any], *, origin: str) -> ProviderSpec:
         docs=str(meta.get("docs", "")),
         thinking=thinking,
         models=MappingProxyType(models),
+        secret_required=bool(meta.get("secret_required", True)),
+        adapter=str(meta.get("adapter", "")),
     )
 
 
@@ -233,7 +261,9 @@ class Registry:
         value = spec.levels.get(level)
         if value is None:
             return None
-        return ThinkingTranslation(style=spec.style, param=spec.param, value=value)
+        return ThinkingTranslation(
+            style=spec.style, param=spec.param, value=value, extra=spec.extra
+        )
 
     # ------------------------------------------------------------ validation
 

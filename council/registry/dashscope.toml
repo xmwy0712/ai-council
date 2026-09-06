@@ -1,0 +1,177 @@
+# 阿里通义 Qwen（DashScope，OpenAI 兼容端点）
+# 核实 2026-09-05：qwen3.8 / qwen3.7 系列在役。
+# 思考旋钮是标量 thinking_budget，但必须同时发送伴生字段 enable_thinking
+# —— 伴生字段用 [provider.thinking.extra] 声明，随请求一起发出。
+
+[provider]
+id = "dashscope"
+display = "阿里通义 Qwen"
+base_url = "https://dashscope.aliyuncs.com/compatible-mode/v1"
+secret_env = "DASHSCOPE_API_KEY"
+adapter = "openai_api"
+docs = "https://help.aliyun.com/zh/model-studio/models"
+
+[provider.thinking]
+style = "thinking_budget"
+param = "thinking_budget"
+
+[provider.thinking.levels]
+low = 1024
+medium = 8192
+high = 32768
+
+[provider.thinking.extra]
+enable_thinking = true
+
+[[models]]
+id = "qwen3.8-max"
+display = "Qwen3.8 Max"
+thinking = true
+max_context_tokens = 262144
+max_output_tokens = 65536
+verified = "2026-09-05"
+source = "https://help.aliyun.com/zh/model-studio/models"
+
+[[models]]
+id = "qwen3.8-plus"
+display = "Qwen3.8 Plus"
+thinking = true
+max_context_tokens = 262144
+max_output_tokens = 32768
+verified = "2026-09-05"
+source = "https://help.aliyun.com/zh/model-studio/models"
+
+[[models]]
+id = "qwen3.8-turbo"
+display = "Qwen3.8 Turbo"
+thinking = true
+max_context_tokens = 262144
+max_output_tokens = 32768
+verified = "2026-09-05"
+source = "https://help.aliyun.com/zh/model-studio/models"
+
+[[models]]
+id = "qwen3.8-omni"
+display = "Qwen3.8 Omni"
+thinking = false
+max_context_tokens = 131072
+max_output_tokens = 16384
+verified = "2026-09-05"
+source = "https://help.aliyun.com/zh/model-studio/models"
+
+[[models]]
+id = "qwen3.7-max"
+display = "Qwen3.7 Max"
+thinking = true
+max_context_tokens = 262144
+max_output_tokens = 65536
+verified = "2026-09-05"
+source = "https://help.aliyun.com/zh/model-studio/models"
+
+[[models]]
+id = "qwen3.7-plus"
+display = "Qwen3.7 Plus"
+thinking = true
+max_context_tokens = 262144
+max_output_tokens = 32768
+verified = "2026-09-05"
+source = "https://help.aliyun.com/zh/model-studio/models"
+
+[[models]]
+id = "qwen3.7-coder-plus"
+display = "Qwen3.7 Coder Plus"
+thinking = true
+max_context_tokens = 262144
+max_output_tokens = 65536
+verified = "2026-09-05"
+source = "https://help.aliyun.com/zh/model-studio/models"
+
+[[models]]
+id = "qwen3.7-vl-max"
+display = "Qwen3.7 VL Max"
+thinking = false
+max_context_tokens = 131072
+max_output_tokens = 16384
+verified = "2026-09-05"
+source = "https://help.aliyun.com/zh/model-studio/models"
+
+[[models]]
+id = "qwen3.6-max"
+display = "Qwen3.6 Max"
+thinking = true
+max_context_tokens = 262144
+max_output_tokens = 65536
+verified = "2026-09-05"
+source = "https://help.aliyun.com/zh/model-studio/models"
+
+[[models]]
+id = "qwen3.6-plus"
+display = "Qwen3.6 Plus"
+thinking = true
+max_context_tokens = 262144
+max_output_tokens = 32768
+verified = "2026-09-05"
+source = "https://help.aliyun.com/zh/model-studio/models"
+
+[[models]]
+id = "qwen3.5-max"
+display = "Qwen3.5 Max"
+thinking = true
+max_context_tokens = 262144
+max_output_tokens = 65536
+verified = "2026-09-05"
+source = "https://help.aliyun.com/zh/model-studio/models"
+
+[[models]]
+id = "qwen3.5-plus"
+display = "Qwen3.5 Plus"
+thinking = true
+max_context_tokens = 262144
+max_output_tokens = 32768
+verified = "2026-09-05"
+source = "https://help.aliyun.com/zh/model-studio/models"
+
+[[models]]
+id = "qwen3-max"
+display = "Qwen3 Max"
+thinking = true
+max_context_tokens = 262144
+max_output_tokens = 65536
+verified = "2026-09-05"
+source = "https://help.aliyun.com/zh/model-studio/models"
+
+[[models]]
+id = "qwen3-plus"
+display = "Qwen3 Plus"
+thinking = true
+max_context_tokens = 262144
+max_output_tokens = 32768
+verified = "2026-09-05"
+source = "https://help.aliyun.com/zh/model-studio/models"
+
+[[models]]
+id = "qwen3-turbo"
+display = "Qwen3 Turbo"
+thinking = true
+max_context_tokens = 262144
+max_output_tokens = 32768
+verified = "2026-09-05"
+source = "https://help.aliyun.com/zh/model-studio/models"
+
+[[models]]
+id = "qwq-plus"
+display = "QwQ Plus"
+thinking = true
+max_context_tokens = 131072
+max_output_tokens = 32768
+verified = "2026-09-05"
+source = "https://help.aliyun.com/zh/model-studio/models"
+
+[[models]]
+id = "qwen-deep-research"
+display = "Qwen Deep Research"
+thinking = false
+max_context_tokens = 262144
+max_output_tokens = 32768
+verified = "2026-09-05"
+source = "https://help.aliyun.com/zh/model-studio/models"

@@ -1,0 +1,53 @@
+# DeepSeek（OpenAI 兼容端点）
+# 核实 2026-09-06（官方文档 api-docs.deepseek.com 直证）：
+# API 仅暴露三个模型 id ——
+#   deepseek-v4-flash            版本 DeepSeek-V4-Flash-0731
+#   deepseek-v4-pro              版本 DeepSeek-V4-Pro-0813
+#   deepseek-v4-flash-vision-exp 实验性，额外支持图像输入
+# 1M 上下文 / 384K 最大输出；旧 chat/reasoner 及带日期的快照 id 均已下线。
+# 思考：嵌套 thinking:{type} 可开关 + 标量 reasoning_effort（low / high(默认) / max）。
+# 旋钮用标量 reasoning_effort：medium 向上映射为 high，high 映射为 max。
+
+[provider]
+id = "deepseek"
+display = "DeepSeek"
+base_url = "https://api.deepseek.com/v1"
+secret_env = "DEEPSEEK_API_KEY"
+adapter = "openai_api"
+docs = "https://api-docs.deepseek.com/quick_start/pricing"
+
+[provider.thinking]
+style = "enum_effort"
+param = "reasoning_effort"
+
+[provider.thinking.levels]
+low = "low"
+medium = "high"
+high = "max"
+
+[[models]]
+id = "deepseek-v4-pro"
+display = "DeepSeek V4 Pro（0813）"
+thinking = true
+max_context_tokens = 1048576
+max_output_tokens = 393216
+verified = "2026-09-06"
+source = "https://api-docs.deepseek.com"
+
+[[models]]
+id = "deepseek-v4-flash"
+display = "DeepSeek V4 Flash（0731）"
+thinking = true
+max_context_tokens = 1048576
+max_output_tokens = 393216
+verified = "2026-09-06"
+source = "https://api-docs.deepseek.com"
+
+[[models]]
+id = "deepseek-v4-flash-vision-exp"
+display = "DeepSeek V4 Flash Vision（实验）"
+thinking = true
+max_context_tokens = 1048576
+max_output_tokens = 393216
+verified = "2026-09-06"
+source = "https://api-docs.deepseek.com"

@@ -1,0 +1,83 @@
+# xAI Grok（OpenAI 兼容端点）
+# 核实 2026-09-05：grok-4.6 / grok-4.5 在役；grok-4 已下线。
+
+[provider]
+id = "xai"
+display = "xAI Grok"
+base_url = "https://api.x.ai/v1"
+secret_env = "XAI_API_KEY"
+adapter = "openai_api"
+docs = "https://docs.x.ai/docs/models"
+
+[provider.thinking]
+style = "enum_effort"
+param = "reasoning_effort"
+
+[provider.thinking.levels]
+low = "low"
+medium = "medium"
+high = "high"
+
+[[models]]
+id = "grok-4.6"
+display = "Grok 4.6"
+thinking = true
+max_context_tokens = 262144
+max_output_tokens = 65536
+verified = "2026-09-05"
+source = "https://docs.x.ai/docs/models"
+
+[[models]]
+id = "grok-4.6-fast"
+display = "Grok 4.6 Fast"
+thinking = true
+max_context_tokens = 262144
+max_output_tokens = 65536
+verified = "2026-09-05"
+source = "https://docs.x.ai/docs/models"
+
+[[models]]
+id = "grok-4.5"
+display = "Grok 4.5"
+thinking = true
+max_context_tokens = 262144
+max_output_tokens = 65536
+verified = "2026-09-05"
+source = "https://docs.x.ai/docs/models"
+
+[[models]]
+id = "grok-4.5-fast"
+display = "Grok 4.5 Fast"
+thinking = true
+max_context_tokens = 262144
+max_output_tokens = 65536
+verified = "2026-09-05"
+source = "https://docs.x.ai/docs/models"
+
+[[models]]
+id = "grok-4.5-mini"
+display = "Grok 4.5 Mini"
+thinking = true
+max_context_tokens = 131072
+max_output_tokens = 32768
+verified = "2026-09-05"
+source = "https://docs.x.ai/docs/models"
+
+[[models]]
+id = "grok-image-2"
+display = "Grok Image 2"
+thinking = false
+structured_output = false
+max_context_tokens = 131072
+max_output_tokens = 4096
+verified = "2026-09-05"
+source = "https://docs.x.ai/docs/models"
+
+[[models]]
+id = "grok-multi-agent"
+display = "Grok Multi-Agent"
+thinking = true
+max_context_tokens = 262144
+max_output_tokens = 65536
+verified = "2026-09-05"
+source = "https://docs.x.ai/docs/models"

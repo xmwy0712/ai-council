@@ -432,13 +432,15 @@ class SessionManager:
         session_id: str,
         question: str,
         uploads: Sequence[tuple[str, str]] = (),
+        *,
+        config: Config | None = None,
     ) -> SessionHub:
         if self._hubs.get(session_id) is not None:
             raise HubError(f"会话 {session_id} 已在运行")
         hub = SessionHub(
             session_id=session_id,
             store=self._store,
-            config=self._config,
+            config=config or self._config,
             adapter_builder=self._adapter_builder,
             resume_timeout_s=self._resume_timeout_s,
         )

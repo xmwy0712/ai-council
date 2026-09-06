@@ -1,0 +1,121 @@
+# Ollama（本地推理，OpenAI 兼容端点）
+# 核实 2026-09-05：Ollama 原生支持 think 参数（true / low / medium / high），
+# 因此直接声明 enum_effort + param = "think"，旋钮即为原生参数。
+# 本地端点不需要密钥：secret_required = false。
+
+[provider]
+id = "ollama"
+display = "Ollama（本地）"
+base_url = "http://localhost:11434/v1"
+secret_env = "OLLAMA_API_KEY"
+secret_required = false
+adapter = "openai_api"
+docs = "https://docs.ollama.com/api/openai"
+
+[provider.thinking]
+style = "enum_effort"
+param = "think"
+
+[provider.thinking.levels]
+low = "low"
+medium = "medium"
+high = "high"
+
+[[models]]
+id = "qwen3.8:32b"
+display = "Qwen3.8 32B"
+thinking = true
+max_context_tokens = 131072
+max_output_tokens = 32768
+verified = "2026-09-05"
+source = "https://ollama.com/library"
+
+[[models]]
+id = "qwen3.8:14b"
+display = "Qwen3.8 14B"
+thinking = true
+max_context_tokens = 131072
+max_output_tokens = 32768
+verified = "2026-09-05"
+source = "https://ollama.com/library"
+
+[[models]]
+id = "qwen3:32b"
+display = "Qwen3 32B"
+thinking = true
+max_context_tokens = 131072
+max_output_tokens = 32768
+verified = "2026-09-05"
+source = "https://ollama.com/library"
+
+[[models]]
+id = "qwen3:14b"
+display = "Qwen3 14B"
+thinking = true
+max_context_tokens = 131072
+max_output_tokens = 32768
+verified = "2026-09-05"
+source = "https://ollama.com/library"
+
+[[models]]
+id = "deepseek-v4:latest"
+display = "DeepSeek V4"
+thinking = true
+max_context_tokens = 131072
+max_output_tokens = 65536
+verified = "2026-09-05"
+source = "https://ollama.com/library"
+
+[[models]]
+id = "gpt-oss:120b"
+display = "GPT-OSS 120B"
+thinking = true
+max_context_tokens = 131072
+max_output_tokens = 65536
+verified = "2026-09-05"
+source = "https://ollama.com/library"
+
+[[models]]
+id = "gpt-oss:20b"
+display = "GPT-OSS 20B"
+thinking = true
+max_context_tokens = 131072
+max_output_tokens = 32768
+verified = "2026-09-05"
+source = "https://ollama.com/library"
+
+[[models]]
+id = "glm-5.2:latest"
+display = "GLM-5.2"
+thinking = true
+max_context_tokens = 131072
+max_output_tokens = 32768
+verified = "2026-09-05"
+source = "https://ollama.com/library"
+
+[[models]]
+id = "llama5:latest"
+display = "Llama 5"
+thinking = false
+max_context_tokens = 131072
+max_output_tokens = 32768
+verified = "2026-09-05"
+source = "https://ollama.com/library"
+
+[[models]]
+id = "mistral-large:latest"
+display = "Mistral Large"
+thinking = false
+max_context_tokens = 131072
+max_output_tokens = 32768
+verified = "2026-09-05"
+source = "https://ollama.com/library"
+
+[[models]]
+id = "phi5:latest"
+display = "Phi-5"
+thinking = true
+max_context_tokens = 65536
+max_output_tokens = 16384
+verified = "2026-09-05"
+source = "https://ollama.com/library"

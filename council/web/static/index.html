@@ -3,15 +3,19 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
   <title>AI Council</title>
   <link rel="stylesheet" href="style.css">
   <script>
     // Apply the persisted theme before first paint to avoid flashing.
+    // Colors are set as inline CSS variables; mode/id attributes let the
+    // stylesheet adapt (dark accents, high-contrast opt-outs) without JS.
     try {
       var saved = JSON.parse(localStorage.getItem("council:theme") || "null");
       if (saved) {
         var mode = saved.mode || "light";
         document.documentElement.dataset.themeMode = mode;
+        if (saved.id) document.documentElement.dataset.themeId = saved.id;
         if (saved.colors) {
           var root = document.documentElement.style;
           Object.keys(saved.colors).forEach(function (key) {
@@ -23,25 +27,52 @@
   </script>
 </head>
 <body>
+  <!-- Ambient scene: soft aurora + grain, purely decorative -->
+  <div class="scene" aria-hidden="true">
+    <div class="scene-glow scene-glow--a"></div>
+    <div class="scene-glow scene-glow--b"></div>
+    <div class="scene-grain"></div>
+  </div>
+
+  <!-- Cursor star & planets effect: decorative, can be toggled in settings -->
+  <canvas id="fx-canvas" class="fx-canvas" aria-hidden="true"></canvas>
+
   <header class="topbar">
-    <div class="brand">AI Council <span class="brand-dot">•</span> 多模型会谈</div>
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true">
+        <svg viewBox="0 0 28 28" fill="none">
+          <rect width="28" height="28" rx="8.5" fill="url(#brandgrad)"/>
+          <circle cx="14" cy="14" r="2.35" fill="#fff"/>
+          <circle cx="14" cy="6.6" r="1.6" fill="#fff" opacity=".92"/>
+          <circle cx="14" cy="21.4" r="1.6" fill="#fff" opacity=".92"/>
+          <circle cx="6.6" cy="14" r="1.6" fill="#fff" opacity=".92"/>
+          <circle cx="21.4" cy="14" r="1.6" fill="#fff" opacity=".92"/>
+          <circle cx="14" cy="14" r="9.2" stroke="#fff" stroke-opacity=".28" stroke-width="1"/>
+          <defs>
+            <linearGradient id="brandgrad" x1="0" y1="0" x2="28" y2="28" gradientUnits="userSpaceOnUse">
+              <stop stop-color="#5a7dff"/>
+              <stop offset="1" stop-color="#8b5cf6"/>
+            </linearGradient>
+          </defs>
+        </svg>
+      </span>
+      <span class="brand-text">AI Council <span class="brand-dot">•</span> <span data-i18n="brand.tag"></span></span>
+    </div>
     <nav class="top-actions">
-      <button id="btn-home" class="link" type="button" data-i18n="nav.new"></button>
-      <button id="btn-back" class="link hidden" type="button" data-i18n="nav.back"></button>
-      <button id="btn-keys" class="chip" type="button" data-i18n="keys.open"></button>
-      <button id="btn-lang" class="chip" type="button" title="Switch language">EN / 中</button>
-      <select id="theme-select" class="chip" title="主题"></select>
-      <button id="btn-import-theme" class="chip" type="button" data-i18n="theme.import"></button>
-      <button id="btn-export-theme" class="chip" type="button" data-i18n="theme.export"></button>
-      <input id="theme-file" type="file" accept=".json,application/json" class="hidden">
+      <button id="btn-home" class="chip" type="button" data-i18n="nav.new"></button>
+      <button id="btn-back" class="chip hidden" type="button" data-i18n="nav.back"></button>
+      <button id="btn-settings" class="chip" type="button" data-i18n="settings.open"></button>
     </nav>
   </header>
 
   <main>
     <!-- ====================== new session view ====================== -->
     <section id="view-new" class="view">
+      <div id="config-warnings" class="banner warn hidden config-warnings" role="status"></div>
       <div class="card start-card">
+        <p class="kicker">AI Council · deliberation studio</p>
         <h2 data-i18n="new.title"></h2>
+        <div id="roster-editor" class="roster-editor" aria-label="roster"></div>
         <form id="new-form">
           <label data-i18n="new.question" for="question"></label>
           <textarea id="question" rows="4" placeholder="…"></textarea>
@@ -52,13 +83,12 @@
           </div>
           <ul id="file-list" class="file-list"></ul>
           <p class="hint" data-i18n="new.hint"></p>
-          <p id="room" class="hint"></p>
           <div id="new-error" class="banner error hidden"></div>
           <button id="btn-start" class="primary" type="submit" data-i18n="new.start"></button>
         </form>
       </div>
 
-      <div class="card">
+      <div class="card sessions-card">
         <h2 data-i18n="list.title"></h2>
         <div id="session-list" class="session-list"><p class="dim" data-i18n="list.empty"></p></div>
       </div>
@@ -76,13 +106,16 @@
             <span id="phase-chip" class="chip"></span>
             <span id="room-chip" class="chip"></span>
           </div>
+          <p id="roster" class="hint"></p>
         </div>
         <div class="head-actions">
           <button id="btn-pause" class="chip" type="button" data-i18n="act.pause"></button>
           <button id="btn-resume" class="chip" type="button" data-i18n="act.resume"></button>
           <button id="btn-stop" class="chip danger" type="button" data-i18n="act.stop"></button>
-          <select id="policy-select" class="chip" title="failure policy"></select>
-          <label class="chip"><input id="raw-toggle" type="checkbox"> raw</label>
+          <select id="policy-select" class="chip"></select>
+          <span class="help-tip" data-i18n-tip="policy.help" tabindex="0">?</span>
+          <label class="chip toggle-chip"><input id="raw-toggle" type="checkbox"> raw</label>
+          <span class="help-tip" data-i18n-tip="raw.help" tabindex="0">?</span>
           <a id="btn-export" class="chip linklike" download data-i18n="act.export"></a>
         </div>
       </div>
@@ -112,18 +145,50 @@
     </div>
   </div>
 
-  <!-- ====================== keys panel ====================== -->
-  <div id="keys-overlay" class="overlay hidden">
-    <div class="card keys-card">
-      <h3 data-i18n="keys.title"></h3>
-      <p class="hint" data-i18n="keys.desc"></p>
-      <div id="keys-list"></div>
-      <div id="keys-error" class="banner error hidden"></div>
-      <div class="keys-custom">
-        <input id="keys-custom-name" type="text" autocomplete="off" spellcheck="false">
-        <input id="keys-custom-value" type="password" autocomplete="new-password" placeholder="sk-…">
-        <button id="btn-keys-custom" class="chip" type="button" data-i18n="keys.custom.add"></button>
-      </div>
+  <!-- ====================== settings panel ====================== -->
+  <div id="settings-overlay" class="overlay hidden">
+    <div class="card settings-card" role="dialog" aria-modal="true">
+      <h3 data-i18n="settings.title"></h3>
+
+      <section class="settings-section">
+        <h4 data-i18n="settings.fx"></h4>
+        <label class="chip toggle-chip" for="fx-toggle">
+          <input id="fx-toggle" type="checkbox">
+          <span data-i18n="settings.fx.enable"></span>
+        </label>
+      </section>
+
+      <section class="settings-section">
+        <h4 data-i18n="settings.theme"></h4>
+        <div class="settings-row">
+          <select id="theme-select" class="chip"></select>
+          <button id="btn-import-theme" class="chip" type="button" data-i18n="theme.import"></button>
+          <button id="btn-export-theme" class="chip" type="button" data-i18n="theme.export"></button>
+          <input id="theme-file" type="file" accept=".json,application/json" class="hidden">
+        </div>
+      </section>
+
+      <section class="settings-section">
+        <h4 data-i18n="settings.lang"></h4>
+        <div class="settings-row">
+          <select id="lang-select" class="chip">
+            <option value="zh">中文</option>
+            <option value="en">English</option>
+          </select>
+        </div>
+      </section>
+
+      <section class="settings-section">
+        <h4 data-i18n="keys.title"></h4>
+        <p class="hint" data-i18n="keys.desc"></p>
+        <div id="keys-list"></div>
+        <div id="keys-error" class="banner error hidden" role="alert"></div>
+        <div class="keys-custom">
+          <input id="keys-custom-name" type="text" autocomplete="off" spellcheck="false">
+          <input id="keys-custom-value" type="password" autocomplete="new-password" placeholder="sk-…">
+          <button id="btn-keys-custom" class="chip" type="button" data-i18n="keys.custom.add"></button>
+        </div>
+      </section>
     </div>
   </div>
 

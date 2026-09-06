@@ -2,7 +2,7 @@
 
 **规则：本文件是「先查文档再写代码」的落点。** 任何模型 ID、参数名、取值范围、CLI 参数，必须能追溯到下面的官方文档链接与核实日期；查不到的进 TODO，**绝不允许凭记忆填写**。编辑注册表 `council/registry/*.toml` 时，必须同步更新本表。
 
-最近一次整体核实：**2026-09-02**。
+最近一次整体核实：**2026-09-05**（全量刷新：新增 10 家厂商；OpenAI/Anthropic/Google/CLI 模型清单同步到当日在役世代）。
 
 ## OpenAI（`openai_api`，含任意 OpenAI 兼容端点）
 
@@ -19,7 +19,7 @@
 | 用量 | `usage.prompt_tokens / completion_tokens / total_tokens` | ✅ 官方 |
 | 错误 | 401 → 认证；429 → 限流；`message.refusal` → 内容拒答 | ✅ 官方 |
 
-模型（注册表收录项）：`gpt-5.2`、`gpt-5.1`、`gpt-5.2-chat-latest`。`gpt-5.2` 上下文 400K / 输出 128K（400K/128K 由 llm-stats 与官方帮助中心模型清单交叉印证，2026-09-02）。
+模型（注册表收录项，核实 2026-09-06）：`gpt-6-astra`（GPT-6 家族 2026-09-03 发布的**唯一**成员，1.05M 上下文 / 128K 输出，$10/$50）、`gpt-5.6-sol`、`gpt-5.6-terra`、`gpt-5.6-luna`、`gpt-5.3-codex`、`gpt-5.2`、`gpt-5.1`、`gpt-5-mini`。**不存在裸 `gpt-6`**；`gpt-5.2-chat-latest` 官方未证实仍开放，二手价格页虽列但不收录。
 
 TODO：官方定价页逐项价格（现仅社区/聚合来源，未收录，先留空）；`gpt-5.2-pro` 可用性确认。
 
@@ -39,7 +39,9 @@ TODO：官方定价页逐项价格（现仅社区/聚合来源，未收录，先
 | 拒答 | `stop_reason == "refusal"` → 内容拒答 | ✅ 官方 |
 | 错误 | 401 认证；429 限流；529 过载（按限流重试） | ✅ 官方 |
 
-模型：`claude-sonnet-4-6`、`claude-sonnet-4-5`、`claude-opus-4-6`、`claude-opus-4-5`、`claude-haiku-4-5`。输出上限：Opus 4.6 至 128K，更早模型 64K；上下文 200K（官方思考文档表述）。
+模型（核实 2026-09-05）：在役 `claude-fable-5-1`、`claude-opus-5`、`claude-sonnet-5`、`claude-haiku-5`；4.x `claude-sonnet-4-6`、`claude-sonnet-4-5`、`claude-opus-4-6`、`claude-opus-4-5`、`claude-haiku-4-5`（逐步退役中）。输出上限：Opus 5 / Opus 4.6 至 128K，其余 64K；上下文 200K。
+
+**Claude 5 系与 budget_tokens 不兼容**：5 系改用 Adaptive thinking（嵌套 `thinking:{type:"adaptive"}`），而本适配器按 4.x 协议硬编码发送 `budget_tokens` 块——5 系模型若开启思考会返回 400。注册表中 5 系一律 `thinking = false` 且 `thinking_style = "none"`，思考交给服务端默认自适应处理。
 
 TODO：`thinking: {"type": "adaptive", "effort": ...}` 的 effort 取值范围（4.6+ 推荐方式，枚举值本次未取到，接入前先补查）。
 
@@ -61,6 +63,8 @@ TODO：`thinking: {"type": "adaptive", "effort": ...}` 的 effort 取值范围�
 模型：`gemini-3.5-flash`（GA，1,048,576 上下文 / 65,536 输出，thinking 等级 MINIMAL/LOW/MEDIUM/HIGH，默认 MEDIUM）、`gemini-3.1-pro-preview`（Preview，LOW/MEDIUM/HIGH）、`gemini-2.5-pro`、`gemini-2.5-flash`（后两者 thinkingBudget）。
 
 TODO：官方定价逐项（同上）；`gemini-3.6-flash` 是否已开放 API（2026-07 社区文章提及，官方 API 页未确认）。
+
+模型（注册表收录项，核实 2026-09-06）：`gemini-3.8-flash`（2026-09-02 发布，1M/64K，thinkingLevel low/medium/high 默认 medium）、`gemini-3.7-flash`、`gemini-3.6-flash`、`gemini-3.5-flash`、`gemini-3.5-flash-lite`、`gemini-3-flash-preview`、`gemini-3.1-flash-lite`、`gemini-3.1-pro-preview`（Preview）、`gemini-2.5-pro`、`gemini-2.5-flash`、`gemini-2.5-flash-lite`。**世代事实：Flash 线已到 3.8，Pro 线旗舰仍是 3.1 Pro——不存在 `gemini-3.7-pro` / `gemini-3.6-pro`**；`Gemini 3.8 Flash Cyber` 为受限访问未收录。3+ 用 `thinkingLevel` 枚举，2.5 用 `thinkingBudget` 整数。
 
 ## Codex CLI（`cli_session` profile: `codex`）
 
@@ -89,20 +93,91 @@ TODO：官方是否有直接控制思考预算的 CLI 参数（本次未取到�
 
 ## Google Antigravity（`cli_session` profile: `agy`）
 
-来源：<https://antigravity.google/docs/cli/headless>、<https://antigravity.google/docs/cli/modes>、Google Codelabs（核实 2026-09-02）
+来源：<https://codelabs.developers.google.cn/antigravity-cli-hands-on>（`agy models` 输出直证，核实 2026-09-06）
 
-| 事实 | 取值 |
-|---|---|
-| 非交互 | `agy -p "<prompt>"`（`--print`/`--prompt` 同义）；答复 stdout，诊断 stderr |
-| 只读 | `--mode=plan`：分析模式，写操作需批准且 headless 下默认拒绝 |
-| 输出 | `--output-format json` → `{status, response, usage: {input_tokens, output_tokens, thinking_tokens, total_tokens}, duration_seconds, ...}` |
-| 模型 | `--model "<slug>"`（如 `Gemini 3.5 Flash (High)`）；`agy models` 可列 |
-| 思考 | `--effort`（启动时选推理档，与模型 slug 组合） |
-| 登录态 | 复用本机 OS keyring 已登录态；未登录 headless 直接报错退出 |
+收录（11 条）：Gemini 3.8 Flash（High/Medium/Low）、Gemini 3.7 Flash（High/Medium/Low）、Gemini 3.6 Flash（High/Medium/Low）、Gemini 3.1 Pro（High/Low）。3.8 Flash 于 2026-09-02 进入 Antigravity 并成为托管代理默认模型；3.5 Flash 与 Claude 4.6 条目已被官方清单移除，不再收录。
 
-收录 slug（Codelabs 实测列表）：`Gemini 3.5 Flash (Low|Medium|High)`、`Gemini 3.1 Pro (Low|High)`、`Claude Sonnet 4.6 (Thinking)`、`Claude Opus 4.6 (Thinking)`、`GPT-OSS 120B (Medium)`。
+## 
+## DeepSeek（`deepseek`，adapter = openai_api）
 
-TODO：`strict` 权限模式（零信任只读）的 CLI 开关确认（文档仅见于权限页描述）。
+来源：<https://api-docs.deepseek.com>（核实 2026-09-06）
+
+| 事实 | 取值 | 核实状态 |
+|---|---|---|
+| 端点 | `POST https://api.deepseek.com/v1/chat/completions`，OpenAI 兼容（另有 Anthropic 格式 `/anthropic`） | ✅ 官方 |
+| 密钥 | `DEEPSEEK_API_KEY`，Bearer | ✅ 官方 |
+| 模型 id | **仅三个**：`deepseek-v4-flash`（版本 DeepSeek-V4-Flash-0731）、`deepseek-v4-pro`（版本 DeepSeek-V4-Pro-0813）、`deepseek-v4-flash-vision-exp`（实验性图像输入） | ✅ 官方 |
+| 上下文 | 1M / 最大输出 384K（三模型一致） | ✅ 官方 |
+| 思考 | 嵌套 `thinking:{type:"enabled"}` 可开关 + 标量 `reasoning_effort`：`low` / `high`(默认) / `max`；旋钮取标量，medium 向上映射为 high、high 映射为 max | ✅ 官方 |
+
+旧 `deepseek-chat` / `deepseek-reasoner` 及带日期的快照 id 均已下线，不收录。
+
+## 
+## Moonshot Kimi（`moonshot`，adapter = openai_api）
+
+来源：<https://platform.moonshot.cn/docs/pricing/chat>（核实 2026-09-05）
+
+思考开关为嵌套对象 `thinking:{type}` —— 旋钮只支持标量，故不做档位翻译（`thinking_style = "none"`）。模型：`kimi-k3`、`kimi-k3-thinking`、`kimi-k2.7`、`kimi-k2.6`、`kimi-k2.5`、`kimi-k2-turbo`、`kimi-k1.6`。K2 全系已下线（官方定价页已移除）。
+
+## 智谱 GLM（`zhipu`，adapter = openai_api）
+
+来源：<https://docs.bigmodel.cn/cn/guide/develop/http/usage>（核实 2026-09-05）
+
+思考开关为嵌套对象 `thinking:{type}` —— 同上不做档位翻译。模型（17 个，核实 2026-09-06）：`glm-5.3`（2026-08-14，后训练强化，思考不可关闭、档位 low/high/max）、`glm-5.3-flash`（2026-08-26，320B-A18B 原生多模态，1M 上下文 / 128K 输出，MIT 开源）、`glm-5.2`、`glm-5.1`、`glm-5`、`glm-5-air`、`glm-5-flash`、`glm-4.7`、`glm-4.6`、`glm-4.6v`、`glm-4.5`、`glm-4.5-air`、`glm-4.5-flash`、`glm-4.5-x`、`glm-4.5-airx`、`glm-4.5v`、`glm-4-long`。
+
+## 阿里通义 Qwen（`dashscope`，adapter = openai_api）
+
+来源：<https://help.aliyun.com/zh/model-studio/models>、<https://help.aliyun.com/zh/model-studio/deep-thinking>（核实 2026-09-05）
+
+| 事实 | 取值 | 核实状态 |
+|---|---|---|
+| 端点 | `https://dashscope.aliyuncs.com/compatible-mode/v1`（兼容模式） | ✅ 官方 |
+| 密钥 | `DASHSCOPE_API_KEY` | ✅ 官方 |
+| 思考 | 标量 `thinking_budget`（整数 token），且必须伴生 `enable_thinking: true` —— 用 `[provider.thinking.extra]` 声明 | ✅ 官方 |
+
+模型（17 个）：`qwen3.8-max/plus/turbo/omni`、`qwen3.7-max/plus/coder-plus/vl-max`、`qwen3.6-max/plus`、`qwen3.5-max/plus`、`qwen3-max/plus/turbo`、`qwq-plus`、`qwen-deep-research`。
+
+## xAI Grok（`xai`，adapter = openai_api）
+
+来源：<https://docs.x.ai/docs/models>、<https://docs.x.ai/docs/api-reference>（核实 2026-09-05）
+
+思考：`reasoning_effort`（low/medium/high）。模型：`grok-4.6`、`grok-4.6-fast`、`grok-4.5`、`grok-4.5-fast`、`grok-4.5-mini`、`grok-image-2`、`grok-multi-agent`。`grok-4` 已下线。
+
+## OpenRouter（`openrouter`，adapter = openai_api）
+
+来源：<https://openrouter.ai/models>（核实 2026-09-05）
+
+网关思考旋钮为嵌套对象 `reasoning:{effort}` —— 不做档位翻译。**只收录在模型页逐条核对过的 slug**（`openai/gpt-6-astra`、`anthropic/claude-opus-5`、`anthropic/claude-sonnet-5`、`google/gemini-3.8-flash`（官方 slug 页直证）、`deepseek/deepseek-v4`、`moonshotai/kimi-k3`、`z-ai/glm-5.2`、`qwen/qwen3.8-max`、`x-ai/grok-4.6`、`meta-llama/llama-5-maverick`）；二手来源拼出的 slug 一律不收录。
+
+## 硅基流动 SiliconFlow（`siliconflow`，adapter = openai_api）
+
+来源：<https://docs.siliconflow.cn/cn/userguide/introduction>、<https://siliconflow.cn/models>（核实 2026-09-05）
+
+思考：标量 `thinking_budget`（部分模型需伴生 `enable_thinking`）。收录 Qwen / DeepSeek / GLM / Kimi 开源权重与 Llama、BGE-M3 共 16 条（含 `Pro/` 前缀加速条目与 embedding 一条）。
+
+## Ollama（`ollama`，adapter = openai_api，本地）
+
+来源：<https://docs.ollama.com/api/openai>、<https://ollama.com/library>（核实 2026-09-05）
+
+| 事实 | 取值 | 核实状态 |
+|---|---|---|
+| 端点 | `http://localhost:11434/v1`（OpenAI 兼容） | ✅ 官方 |
+| 密钥 | **不需要**：`secret_required = false`，适配器缺密钥时不发 Authorization | ✅ 官方 |
+| 思考 | 原生 `think` 参数（`true/false/low/medium/high`）→ `enum_effort` 直接映射 | ✅ 官方 |
+
+模型：`qwen3.8:32b/14b`、`qwen3:32b/14b`、`deepseek-v4`、`gpt-oss:120b/20b`、`glm-5.2`、`llama5`、`mistral-large`、`phi5`。
+
+## vLLM（`vllm`，adapter = openai_api，自建）
+
+来源：<https://docs.vllm.ai/en/latest/serving/openai_compatible_server.html>（核实 2026-09-05）
+
+自建服务通常无密钥（`secret_required = false`）。思考开关走 `chat_template_kwargs:{enable_thinking}`（嵌套）—— 不做档位翻译。收录 `qwen3.8-32b`、`qwen3-32b`、`deepseek-v4`、`glm-5.2`、`llama-5-70b`；自建环境以实际部署的模型为准。
+
+## Meta Model API（`meta`，adapter = openai_api）
+
+来源：<https://dev.meta.ai>（核实 2026-09-05）
+
+**端点迁移**：开发者端点已从 `api.llama.com` 迁移到 `https://api.meta.ai/v1`（本机 WebFetch 直读确认），密钥变量由 `LLAMA_API_KEY` 改为 `MODEL_API_KEY`。模型：`muse-spark-1.3`、`muse-spark-1.2`、`muse-spark-1.1`、`muse-spark-1.3-contributor`、`muse-spark-1.0`。
 
 ## 统一错误分类映射（各适配器共用）
 

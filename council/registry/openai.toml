@@ -1,5 +1,6 @@
 # OpenAI 及任意 OpenAI 兼容端点。
-# 参数名与取值范围见 docs/PROVIDERS.md（核实 2026-09-02）。
+# 参数名与取值范围见 docs/PROVIDERS.md（核实 2026-09-06）。
+# GPT-6 / GPT-5.6 世代在役；gpt-5.2-chat-latest 已关闭下线。
 
 [provider]
 id = "openai_api"
@@ -18,6 +19,61 @@ medium = "medium"
 high = "high"
 
 [[models]]
+id = "gpt-6-astra"
+display = "GPT-6 Astra"
+thinking = true
+structured_output = true
+streaming = true
+max_context_tokens = 400000
+max_output_tokens = 128000
+verified = "2026-09-06"
+source = "https://developers.openai.com/api/reference/resources/chat/subresources/completions/methods/create"
+
+[[models]]
+id = "gpt-5.6-sol"
+display = "GPT-5.6 Sol"
+thinking = true
+structured_output = true
+streaming = true
+max_context_tokens = 400000
+max_output_tokens = 128000
+verified = "2026-09-06"
+source = "https://developers.openai.com/api/reference/resources/chat/subresources/completions/methods/create"
+
+[[models]]
+id = "gpt-5.6-terra"
+display = "GPT-5.6 Terra"
+thinking = true
+structured_output = true
+streaming = true
+max_context_tokens = 400000
+max_output_tokens = 128000
+verified = "2026-09-06"
+source = "https://developers.openai.com/api/reference/resources/chat/subresources/completions/methods/create"
+
+[[models]]
+id = "gpt-5.6-luna"
+display = "GPT-5.6 Luna"
+thinking = true
+structured_output = true
+streaming = true
+max_context_tokens = 400000
+max_output_tokens = 128000
+verified = "2026-09-06"
+source = "https://developers.openai.com/api/reference/resources/chat/subresources/completions/methods/create"
+
+[[models]]
+id = "gpt-5.3-codex"
+display = "GPT-5.3 Codex"
+thinking = true
+structured_output = true
+streaming = true
+max_context_tokens = 400000
+max_output_tokens = 128000
+verified = "2026-09-06"
+source = "https://developers.openai.com/api/reference/resources/chat/subresources/completions/methods/create"
+
+[[models]]
 id = "gpt-5.2"
 display = "GPT-5.2"
 thinking = true
@@ -25,7 +81,7 @@ structured_output = true
 streaming = true
 max_context_tokens = 400000
 max_output_tokens = 128000
-verified = "2026-09-02"
+verified = "2026-09-06"
 source = "https://developers.openai.com/api/reference/resources/chat/subresources/completions/methods/create"
 
 [[models]]
@@ -36,15 +92,16 @@ structured_output = true
 streaming = true
 max_context_tokens = 400000
 max_output_tokens = 128000
-verified = "2026-09-02"
+verified = "2026-09-06"
 source = "https://developers.openai.com/api/reference/resources/chat/subresources/completions/methods/create"
 
 [[models]]
-id = "gpt-5.2-chat-latest"
-display = "GPT-5.2 Chat"
+id = "gpt-5-mini"
+display = "GPT-5 mini"
 thinking = true
 structured_output = true
 streaming = true
-max_output_tokens = 16000
-verified = "2026-09-02"
-source = "https://community.openai.com/t/more-detailed-information-about-models/1373598"
+max_context_tokens = 400000
+max_output_tokens = 128000
+verified = "2026-09-06"
+source = "https://developers.openai.com/api/reference/resources/chat/subresources/completions/methods/create"

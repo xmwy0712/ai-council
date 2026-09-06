@@ -25,11 +25,14 @@ from ..core.contracts import (
     Usage,
 )
 from ..core.errors import CouncilError, ErrorKind
-from ..core.secrets import require
+from ..core.secrets import require, resolve
 from ..registry.loader import get_registry
 from ._http import classify_http_error, ensure_success, iter_sse_data
 
 __all__ = ["OpenAIAdapter"]
+
+# 未声明 adapter 的节点（自定义 base_url）沿用 OpenAI 的默认值。
+_DEFAULT_PROVIDER = "openai_api"
 
 
 class OpenAIAdapter:
@@ -42,19 +45,25 @@ class OpenAIAdapter:
         self.id = node.id
         self._node = node
         registry = get_registry()
-        provider = registry.provider("openai_api")
+        # 节点声明的厂商优先（DeepSeek / 智谱 / 通义 / Ollama …），
+        # 找不到时回退到 OpenAI 默认端点。
+        provider = registry.provider(node.adapter) or registry.provider(_DEFAULT_PROVIDER)
         default_base = provider.base_url if provider else "https://api.openai.com/v1"
         self._base_url = str(node.settings.get("base_url") or default_base).rstrip("/")
         secret_env = str(
             node.settings.get("secret_env")
             or (provider.secret_env if provider else "OPENAI_API_KEY")
         )
-        self._key = require(secret_env)
+        # 本地/自建端点（Ollama、vLLM）没有密钥也能跑，缺密钥时不发 Authorization
+        if provider is not None and not provider.secret_required:
+            self._key = resolve(secret_env) or ""
+        else:
+            self._key = require(secret_env)
         self._model = registry.model(node.model)
         self._client = client
         self._owns_client = client is None
         self._thinking_translation = (
-            registry.translate_thinking("openai_api", node.model, node.thinking or "")
+            registry.translate_thinking(node.adapter, node.model, node.thinking or "")
             if node.thinking
             else None
         )
@@ -102,10 +111,10 @@ class OpenAIAdapter:
         return self._client
 
     def _headers(self) -> dict[str, str]:
-        return {
-            "Authorization": f"Bearer {self._key}",
-            "Content-Type": "application/json",
-        }
+        headers = {"Content-Type": "application/json"}
+        if self._key:  # 免密钥端点（Ollama / vLLM）不发送 Authorization
+            headers["Authorization"] = f"Bearer {self._key}"
+        return headers
 
     def _payload(self, req: ChatRequest) -> dict[str, Any]:
         payload: dict[str, Any] = {
@@ -123,6 +132,8 @@ class OpenAIAdapter:
             payload["response_format"] = {"type": "json_object"}
         if self._thinking_translation is not None and req.thinking:
             payload[self._thinking_translation.param] = self._thinking_translation.value
+            # 伴生字段（如 DashScope 的 enable_thinking）一并发出
+            payload.update(dict(self._thinking_translation.extra))
         return payload
 
     async def _chat(self, req: ChatRequest) -> AsyncIterator[ChatChunk]:

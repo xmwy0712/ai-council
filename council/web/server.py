@@ -35,6 +35,7 @@ from ..core.paths import sessions_db
 from ..core.state import replay
 from ..core.store import EventStore
 from ..export import render_markdown
+from ..registry import get_registry
 from .sessionhub import HubError, SessionManager, UploadRejected
 
 __all__ = ["create_app"]
@@ -48,9 +49,19 @@ PRESET_SECRETS: tuple[tuple[str, str], ...] = (
     ("OPENAI_API_KEY", "keys.vendor.openai"),
     ("ANTHROPIC_API_KEY", "keys.vendor.anthropic"),
     ("GOOGLE_API_KEY", "keys.vendor.gemini"),
+    ("DEEPSEEK_API_KEY", "keys.vendor.deepseek"),
+    ("MOONSHOT_API_KEY", "keys.vendor.moonshot"),
+    ("ZHIPU_API_KEY", "keys.vendor.zhipu"),
+    ("DASHSCOPE_API_KEY", "keys.vendor.dashscope"),
+    ("XAI_API_KEY", "keys.vendor.xai"),
+    ("OPENROUTER_API_KEY", "keys.vendor.openrouter"),
+    ("SILICONFLOW_API_KEY", "keys.vendor.siliconflow"),
+    ("MODEL_API_KEY", "keys.vendor.meta"),
 )
 
 _KEY_NAME = r"^[A-Za-z_][A-Za-z0-9_]*$"
+
+_THINKING_LEVEL = r"^(|low|medium|high)$"
 
 
 class _UploadFile(BaseModel):
@@ -61,6 +72,15 @@ class _UploadFile(BaseModel):
 class _NewSession(BaseModel):
     question: str = Field(min_length=0, max_length=20000)
     files: list[_UploadFile] = Field(default_factory=list)
+    overrides: list[_NodeOverride] = Field(default_factory=list)
+
+
+class _NodeOverride(BaseModel):
+    """会话级阵容覆盖：仅影响本场会议，不写回全局配置。"""
+
+    node_id: str = Field(min_length=1, max_length=64)
+    model: str | None = Field(default=None, max_length=128)
+    thinking: str | None = Field(default=None, pattern=_THINKING_LEVEL)
 
 
 class _ActionBody(BaseModel):
@@ -132,21 +152,117 @@ def create_app(
         redoc_url=None,
     )
 
+    @app.middleware("http")
+    async def _no_cache_static_assets(request: Request, call_next: Callable[..., Any]) -> Response:
+        """静态资产禁用启发式缓存：代码更新后浏览器必须拿到新版本。
+
+        保留 ETag：内容没变时 304 依旧生效，只禁掉「猜测缓存」。
+        """
+        response = cast(Response, await call_next(request))
+        path = request.url.path
+        if path == "/" or path.endswith((".js", ".css", ".html", ".json")):
+            response.headers["Cache-Control"] = "no-cache"
+        return response
+
     # ------------------------------------------------------------------- meta
+
+    def _node_meta(node: Any) -> dict[str, Any]:
+        """节点的展示信息：厂商、模型显示名与思考档位（给阵容编辑器用）。"""
+        registry = get_registry()
+        model = registry.model(node.model)
+        spec = registry.thinking_spec(node.adapter, node.model)
+        return {
+            "id": node.id,
+            "display": node.display or node.id,
+            "adapter": node.adapter,
+            "model": node.model,
+            "model_display": (model.display if model else node.model),
+            "thinking": node.thinking or "",
+            "thinking_supported": bool(model.thinking) if model else False,
+            "thinking_levels": sorted(spec.levels),
+        }
 
     @app.get("/api/meta")
     async def meta(request: Request) -> dict[str, Any]:
         cfg = _manager(request).config
         return {
             "version": __version__,
-            "participants": [
-                {"id": n.id, "display": n.display or n.id, "adapter": n.adapter, "model": n.model}
-                for n in cfg.participants
-            ],
+            "participants": [_node_meta(n) for n in cfg.participants],
             "judge": cfg.judge_node.id if cfg.judge_node else None,
+            "judge_node": _node_meta(cfg.judge_node) if cfg.judge_node else None,
             "language": cfg.council.language,
             "warnings": cfg.warnings(),
         }
+
+    @app.get("/api/models")
+    async def models_catalog() -> dict[str, Any]:
+        """注册表目录：按厂商分组，供网页端阵容编辑器的下拉框使用。"""
+        registry = get_registry()
+        providers = []
+        for pid in sorted(registry.providers):
+            provider = registry.providers[pid]
+            providers.append(
+                {
+                    "id": provider.id,
+                    "display": provider.display,
+                    "secret_required": provider.secret_required,
+                    "models": [
+                        {
+                            "id": m.id,
+                            "display": m.display or m.id,
+                            "thinking": m.thinking,
+                            "thinking_levels": (
+                                sorted(registry.thinking_spec(provider.id, m.id).levels)
+                                if m.thinking
+                                else []
+                            ),
+                        }
+                        for m in provider.models.values()
+                    ],
+                }
+            )
+        return {"providers": providers}
+
+    # ------------------------------------------------------- roster overrides
+
+    def _apply_overrides(cfg: Config, overrides: list[_NodeOverride]) -> Config:
+        """把会话级阵容覆盖应用到一个深拷贝上；任何未知输入都拒绝（422）。
+
+        全局配置永远不被污染；续跑时从会话 meta 里读回同一份覆盖后的配置。
+        """
+        registry = get_registry()
+        effective = cfg.model_copy(deep=True)
+        by_id = {n.id: n for n in (*effective.nodes,)}
+        for override in overrides:
+            node = by_id.get(override.node_id)
+            if node is None:
+                raise HTTPException(
+                    status_code=422,
+                    detail=f"未知节点 {override.node_id!r}（不在当前配置中）",
+                )
+            if override.model:
+                model = registry.model(override.model)
+                if model is None:
+                    raise HTTPException(
+                        status_code=422,
+                        detail=f"模型 {override.model!r} 不在注册表中",
+                    )
+                node.model = override.model
+            if override.thinking is not None:
+                if override.thinking:
+                    model = registry.model(node.model)
+                    if model is None or not model.thinking:
+                        raise HTTPException(
+                            status_code=422,
+                            detail=f"模型 {node.model!r} 不支持思考等级",
+                        )
+                    if registry.translate_thinking(node.adapter, node.model, override.thinking) is None:
+                        raise HTTPException(
+                            status_code=422,
+                            detail=f"模型 {node.model!r} 不支持思考等级 {override.thinking!r}",
+                        )
+                node.thinking = override.thinking or None
+        return effective
 
     # --------------------------------------------------------------- sessions
 
@@ -155,8 +271,9 @@ def create_app(
         manager = _manager(request)
         session_id = new_session_id()
         uploads = [(f.name, f.content) for f in body.files]
+        effective = _apply_overrides(manager.config, body.overrides)
         try:
-            await manager.start_new(session_id, body.question, uploads)
+            await manager.start_new(session_id, body.question, uploads, config=effective)
         except UploadRejected as err:
             raise HTTPException(status_code=400, detail=str(err)) from None
         except HubError as err:
@@ -199,6 +316,21 @@ def create_app(
             raise _missing(session_id)
         events = await manager.events(session_id, since=since, limit=min(limit, 5000))
         return {"events": events}
+
+    @app.delete("/api/sessions/{session_id}")
+    async def delete_session(session_id: str, request: Request) -> dict[str, bool]:
+        manager = _manager(request)
+        # 运行中的会话先终止并卸载，再抹掉存储
+        if (hub := manager.hub(session_id)) is not None:
+            try:
+                hub.stop()
+            except HubError:
+                pass
+            await manager.drop(session_id)
+        deleted = await manager.store.delete_session(session_id)
+        if not deleted:
+            raise _missing(session_id)
+        return {"ok": True}
 
     @app.post("/api/sessions/{session_id}/actions")
     async def session_action(

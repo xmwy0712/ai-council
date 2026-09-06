@@ -1,7 +1,10 @@
 # Google Gemini（generativelanguage API）。
 # 注意：Gemini 3+ 用 thinkingLevel（枚举），Gemini 2.5 用 thinkingBudget（整数），
 # 两代参数混用会报错——model 条目里的 thinking_style 覆盖是数据，不是代码分支。
-# 参数核实见 docs/PROVIDERS.md（2026-09-02）。
+# 参数核实见 docs/PROVIDERS.md（2026-09-06）。
+# 世代事实（官方模型页 + Google Antigravity 博客交叉印证）：Flash 线已到 3.8
+# （2026-09-02 发布，3.7 仍全面支持）；Pro 线旗舰仍是 3.1 Pro（Preview），
+# 不存在 gemini-3.7-pro / gemini-3.6-pro。Gemini 3.8 Flash Cyber 为受限访问，未收录。
 
 [provider]
 id = "google_api"
@@ -20,6 +23,39 @@ medium = "MEDIUM"
 high = "HIGH"
 
 [[models]]
+id = "gemini-3.8-flash"
+display = "Gemini 3.8 Flash"
+thinking = true
+structured_output = true
+streaming = true
+max_context_tokens = 1048576
+max_output_tokens = 65536
+verified = "2026-09-06"
+source = "https://antigravity.google/blog/gemini-3-8-flash-in-google-antigravity"
+
+[[models]]
+id = "gemini-3.7-flash"
+display = "Gemini 3.7 Flash"
+thinking = true
+structured_output = true
+streaming = true
+max_context_tokens = 1048576
+max_output_tokens = 65536
+verified = "2026-09-06"
+source = "https://developers.generativeai.google/api/generate-content"
+
+[[models]]
+id = "gemini-3.6-flash"
+display = "Gemini 3.6 Flash"
+thinking = true
+structured_output = true
+streaming = true
+max_context_tokens = 1048576
+max_output_tokens = 65536
+verified = "2026-09-06"
+source = "https://developers.generativeai.google/api/generate-content"
+
+[[models]]
 id = "gemini-3.5-flash"
 display = "Gemini 3.5 Flash"
 thinking = true
@@ -27,8 +63,41 @@ structured_output = true
 streaming = true
 max_context_tokens = 1048576
 max_output_tokens = 65536
-verified = "2026-09-02"
-source = "https://clouddocs-dot-devsite-v2-prod.appspot.com/gemini-enterprise-agent-platform/models/guides/gemini-3-5-flash"
+verified = "2026-09-06"
+source = "https://developers.generativeai.google/api/generate-content"
+
+[[models]]
+id = "gemini-3.5-flash-lite"
+display = "Gemini 3.5 Flash-Lite"
+thinking = true
+structured_output = true
+streaming = true
+max_context_tokens = 1048576
+max_output_tokens = 65536
+verified = "2026-09-06"
+source = "https://developers.generativeai.google/api/generate-content"
+
+[[models]]
+id = "gemini-3-flash-preview"
+display = "Gemini 3 Flash (Preview)"
+thinking = true
+structured_output = true
+streaming = true
+max_context_tokens = 1048576
+max_output_tokens = 65536
+verified = "2026-09-06"
+source = "https://developers.generativeai.google/api/generate-content"
+
+[[models]]
+id = "gemini-3.1-flash-lite"
+display = "Gemini 3.1 Flash-Lite"
+thinking = true
+structured_output = true
+streaming = true
+max_context_tokens = 1048576
+max_output_tokens = 65536
+verified = "2026-09-06"
+source = "https://developers.generativeai.google/api/generate-content"
 
 [[models]]
 id = "gemini-3.1-pro-preview"
@@ -38,8 +107,8 @@ structured_output = true
 streaming = true
 max_context_tokens = 1048576
 max_output_tokens = 65536
-verified = "2026-09-02"
-source = "https://clouddocs-dot-devsite-v2-prod.appspot.com/gemini-enterprise-agent-platform/models/guides/gemini-3-5-flash"
+verified = "2026-09-06"
+source = "https://developers.generativeai.google/api/generate-content"
 
 [[models]]
 id = "gemini-2.5-pro"
@@ -51,17 +120,31 @@ max_context_tokens = 1048576
 thinking_style = "thinking_budget"
 param = "thinkingBudget"
 levels = { low = 1024, medium = 4096, high = 16384 }
-verified = "2026-09-02"
+verified = "2026-09-06"
 source = "https://developers.generativeai.google/api/generate-content"
 
 [[models]]
 id = "gemini-2.5-flash"
 display = "Gemini 2.5 Flash"
 thinking = true
+max_context_tokens = 1048576
 structured_output = true
 streaming = true
 thinking_style = "thinking_budget"
 param = "thinkingBudget"
 levels = { low = 1024, medium = 4096, high = 16384 }
-verified = "2026-09-02"
+verified = "2026-09-06"
+source = "https://developers.generativeai.google/api/generate-content"
+
+[[models]]
+id = "gemini-2.5-flash-lite"
+display = "Gemini 2.5 Flash-Lite"
+thinking = true
+max_context_tokens = 1048576
+structured_output = true
+streaming = true
+thinking_style = "thinking_budget"
+param = "thinkingBudget"
+levels = { low = 512, medium = 2048, high = 8192 }
+verified = "2026-09-06"
 source = "https://developers.generativeai.google/api/generate-content"

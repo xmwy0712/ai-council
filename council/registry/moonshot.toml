@@ -1,0 +1,75 @@
+# Moonshot Kimi（OpenAI 兼容端点）
+# 核实 2026-09-05：K3 / K2.7 / K2.6 在役；K2 全系已下线。
+# Kimi 的思考开关是嵌套对象 thinking:{type} —— 旋钮只支持标量，
+# 因此本厂商不声明思考档位（thinking_style = "none"），由服务端按默认处理。
+
+[provider]
+id = "moonshot"
+display = "Moonshot Kimi"
+base_url = "https://api.moonshot.cn/v1"
+secret_env = "MOONSHOT_API_KEY"
+adapter = "openai_api"
+docs = "https://platform.moonshot.cn/docs/pricing/chat"
+
+[[models]]
+id = "kimi-k3"
+display = "Kimi K3"
+thinking = true
+max_context_tokens = 262144
+max_output_tokens = 65536
+verified = "2026-09-05"
+source = "https://platform.moonshot.cn/docs/pricing/chat"
+
+[[models]]
+id = "kimi-k3-thinking"
+display = "Kimi K3 Thinking"
+thinking = true
+max_context_tokens = 262144
+max_output_tokens = 65536
+verified = "2026-09-05"
+source = "https://platform.moonshot.cn/docs/pricing/chat"
+
+[[models]]
+id = "kimi-k2.7"
+display = "Kimi K2.7"
+thinking = true
+max_context_tokens = 262144
+max_output_tokens = 32768
+verified = "2026-09-05"
+source = "https://platform.moonshot.cn/docs/pricing/chat"
+
+[[models]]
+id = "kimi-k2.6"
+display = "Kimi K2.6"
+thinking = true
+max_context_tokens = 262144
+max_output_tokens = 32768
+verified = "2026-09-05"
+source = "https://platform.moonshot.cn/docs/pricing/chat"
+
+[[models]]
+id = "kimi-k2.5"
+display = "Kimi K2.5"
+thinking = true
+max_context_tokens = 262144
+max_output_tokens = 32768
+verified = "2026-09-05"
+source = "https://platform.moonshot.cn/docs/pricing/chat"
+
+[[models]]
+id = "kimi-k2-turbo"
+display = "Kimi K2 Turbo"
+thinking = false
+max_context_tokens = 131072
+max_output_tokens = 16384
+verified = "2026-09-05"
+source = "https://platform.moonshot.cn/docs/pricing/chat"
+
+[[models]]
+id = "kimi-k1.6"
+display = "Kimi K1.6"
+thinking = true
+max_context_tokens = 131072
+max_output_tokens = 16384
+verified = "2026-09-05"
+source = "https://platform.moonshot.cn/docs/pricing/chat"

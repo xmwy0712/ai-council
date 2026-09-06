@@ -176,3 +176,88 @@ warn_if_weak_model = true
 # response_path = "choices[0].message.content"
 # usage_input_path = "usage.prompt_tokens"
 # usage_output_path = "usage.completion_tokens"
+
+# ----------------------------------------------------- 2026-09-05 厂商扩展
+# 新增厂商全部数据驱动接入：TOML 里写 adapter = "openai_api" 即可，
+# 无需任何 Python 代码。以下示例取消注释并调整 active_nodes 即可启用。
+# 各家模型清单与思考参数见 docs/PROVIDERS.md（核实 2026-09-05）。
+#
+# [[nodes]]
+# id = "deepseek"
+# display = "DeepSeek V4"
+# adapter = "deepseek"          # 厂商 id 即适配器入口（TOML 内声明协议）
+# model = "deepseek-v4-flash"  # 官方 API 仅 v4-flash(0731)/v4-pro(0813)/v4-flash-vision-exp 三个 id
+# thinking = "high"             # reasoning_effort：low / high(默认) / max；medium 自动映射为 high
+# role = "participant"
+#
+# [[nodes]]
+# id = "glm"
+# display = "智谱 GLM-5.2"
+# adapter = "zhipu"
+# model = "glm-5.2"             # 思考开关为嵌套对象，网页端档位对它只读
+# role = "participant"
+#
+# [[nodes]]
+# id = "qwen"
+# display = "通义 Qwen3.8"
+# adapter = "dashscope"
+# model = "qwen3.8-max"
+# thinking = "high"             # thinking_budget + 伴生 enable_thinking 自动携带
+# role = "participant"
+#
+# [[nodes]]
+# id = "kimi"
+# display = "Kimi K3"
+# adapter = "moonshot"
+# model = "kimi-k3"
+# role = "participant"
+#
+# [[nodes]]
+# id = "grok"
+# display = "Grok 4.6"
+# adapter = "xai"
+# model = "grok-4.6"
+# thinking = "high"
+# role = "participant"
+#
+# [[nodes]]
+# id = "openrouter"
+# display = "OpenRouter 网关"
+# adapter = "openrouter"
+# model = "openai/gpt-6-astra"
+# role = "participant"
+#
+# [[nodes]]
+# id = "siliconflow"
+# display = "硅基流动 Qwen3.8"
+# adapter = "siliconflow"
+# model = "Qwen/Qwen3.8-235B-A22B"
+# thinking = "high"
+# role = "participant"
+#
+# [[nodes]]
+# id = "local-ollama"
+# display = "Ollama 本地 Qwen3"
+# adapter = "ollama"            # 本地端点：无需密钥
+# model = "qwen3:32b"
+# thinking = "high"             # 原生 think 参数，low/medium/high 直通
+# role = "participant"
+#
+# [[nodes]]
+# id = "local-vllm"
+# display = "vLLM 自建 DeepSeek-V4"
+# adapter = "vllm"              # 自建端点：通常无需密钥
+# model = "deepseek-v4"         # 自建服务以实际部署名为准
+# role = "participant"
+#
+# [[nodes]]
+# id = "meta"
+# display = "Meta Muse Spark"
+# adapter = "meta"              # 密钥变量 MODEL_API_KEY（端点已迁移 api.meta.ai/v1）
+# model = "muse-spark-1.3"
+# role = "participant"
+#
+# 密钥注入：网页「设置」面板逐家录入（写入系统钥匙串），或在环境变量 /
+# 数据目录 .env 中配置：DEEPSEEK_API_KEY / MOONSHOT_API_KEY / ZHIPU_API_KEY /
+# DASHSCOPE_API_KEY / XAI_API_KEY / OPENROUTER_API_KEY / SILICONFLOW_API_KEY /
+# MODEL_API_KEY（Ollama / vLLM 免密钥）。

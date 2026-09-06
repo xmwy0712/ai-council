@@ -1,0 +1,57 @@
+# vLLM（自建推理服务，OpenAI 兼容端点）
+# 核实 2026-09-05：vLLM 的思考开关走 chat_template_kwargs（嵌套对象），
+# 旋钮不支持嵌套，因此 thinking_style = "none"。
+# 自建服务通常无密钥：secret_required = false。
+
+[provider]
+id = "vllm"
+display = "vLLM（自建）"
+base_url = "http://localhost:8000/v1"
+secret_env = "VLLM_API_KEY"
+secret_required = false
+adapter = "openai_api"
+docs = "https://docs.vllm.ai/en/latest/serving/openai_compatible_server.html"
+
+[[models]]
+id = "qwen3.8-32b"
+display = "Qwen3.8-32B"
+thinking = true
+max_context_tokens = 131072
+max_output_tokens = 32768
+thinking_style = "none"
+verified = "2026-09-06"
+
+[[models]]
+id = "qwen3-32b"
+display = "Qwen3-32B"
+thinking = true
+max_context_tokens = 131072
+max_output_tokens = 32768
+thinking_style = "none"
+verified = "2026-09-06"
+
+[[models]]
+id = "deepseek-v4"
+display = "DeepSeek-V4"
+thinking = true
+max_context_tokens = 131072
+max_output_tokens = 65536
+thinking_style = "none"
+verified = "2026-09-06"
+
+[[models]]
+id = "glm-5.2"
+display = "GLM-5.2"
+thinking = true
+max_context_tokens = 131072
+max_output_tokens = 32768
+thinking_style = "none"
+
+[[models]]
+id = "llama-5-70b"
+display = "Llama-5-70B"
+thinking = false
+max_context_tokens = 131072
+max_output_tokens = 32768
+thinking_style = "none"
+verified = "2026-09-06"

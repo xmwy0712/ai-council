@@ -18,7 +18,18 @@ def test_model_lookup() -> None:
     model = registry.model("gpt-5.2")
     assert model is not None
     assert model.thinking is True
-    assert model.verified == "2026-09-02"
+    assert model.verified == "2026-09-06"
+
+
+def test_no_fabricated_generation_slugs() -> None:
+    """GPT-6 家族仅 gpt-6-astra；Gemini Pro 线旗舰仍是 3.1——伪造世代一律不收录。"""
+    registry = Registry.load()
+    for bad in ("gpt-6", "gemini-3.7-pro", "gemini-3.6-pro"):
+        assert registry.model(bad) is None, bad
+    assert registry.model("gpt-6-astra") is not None
+    assert registry.model("gemini-3.8-flash") is not None
+    assert registry.model("glm-5.3") is not None
+    assert registry.model("glm-5.3-flash") is not None
 
 
 def test_thinking_translation_openai() -> None:
@@ -173,3 +184,82 @@ def test_validate_config_flags_cli_without_profile() -> None:
     )
     warnings = registry.validate_config(config)
     assert any("settings.cli" in w for w in warnings)
+
+
+# --------------------------------------------------- 2026-09-05 厂商扩展
+
+
+def test_openai_compatible_vendors_load() -> None:
+    """10 家新厂商全部数据驱动接入：一份 TOML，零 Python。"""
+    registry = Registry.load()
+    vendors = {
+        "deepseek",
+        "moonshot",
+        "zhipu",
+        "dashscope",
+        "xai",
+        "openrouter",
+        "siliconflow",
+        "ollama",
+        "vllm",
+        "meta",
+    }
+    assert vendors <= set(registry.providers)
+    for vid in vendors:
+        provider = registry.providers[vid]
+        assert provider.adapter == "openai_api", vid
+    # 厂商声明的 adapter 由工厂解析器兑现：deepseek 节点拿到 OpenAIAdapter
+    from council.adapters import _resolve_factory
+    from council.core.config import NodeSection
+
+    node = NodeSection(id="a", adapter="deepseek", model="deepseek-v4-flash")
+    assert _resolve_factory(node) is not None
+
+
+def test_local_servers_need_no_secret() -> None:
+    registry = Registry.load()
+    for vid in ("ollama", "vllm"):
+        provider = registry.providers[vid]
+        assert provider.secret_required is False, vid
+    # 云厂商仍然要求密钥
+    assert registry.providers["deepseek"].secret_required is True
+
+
+def test_deepseek_effort_maps_medium_to_high() -> None:
+    """官方枚举为 low / high(默认) / max：medium 向上映射，high 顶到 max。"""
+    registry = Registry.load()
+    medium = registry.translate_thinking("deepseek", "deepseek-v4-flash", "medium")
+    high = registry.translate_thinking("deepseek", "deepseek-v4-flash", "high")
+    assert medium is not None and medium.value == "high"
+    assert high is not None and high.value == "max"
+
+
+def test_dashscope_thinking_budget_carries_extra() -> None:
+    registry = Registry.load()
+    translation = registry.translate_thinking("dashscope", "qwen3.8-max", "medium")
+    assert translation is not None
+    assert translation.style == "thinking_budget"
+    assert translation.param == "thinking_budget"
+    assert isinstance(translation.value, int)
+    assert dict(translation.extra).get("enable_thinking") is True
+
+
+def test_ollama_effort_is_native() -> None:
+    registry = Registry.load()
+    translation = registry.translate_thinking("ollama", "qwen3:32b", "high")
+    assert translation is not None
+    assert translation.style == "enum_effort"
+    assert translation.param == "think"
+    assert translation.value == "high"
+
+
+def test_nested_object_knobs_stay_none() -> None:
+    """GLM / Kimi / OpenRouter / vLLM 的思考开关是嵌套对象，旋钮不翻译。"""
+    registry = Registry.load()
+    for provider_id, model_id in (
+        ("zhipu", "glm-5.2"),
+        ("moonshot", "kimi-k3"),
+        ("openrouter", "openai/gpt-6-astra"),
+        ("vllm", "qwen3-32b"),
+    ):
+        assert registry.translate_thinking(provider_id, model_id, "high") is None, provider_id

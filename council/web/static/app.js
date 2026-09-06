@@ -67,6 +67,9 @@ function localize() {
   document.querySelectorAll("[data-i18n-ph]").forEach((node) => {
     node.placeholder = t(node.dataset.i18nPh);
   });
+  document.querySelectorAll("[data-i18n-tip]").forEach((node) => {
+    node.dataset.tip = t(node.dataset.i18nTip);
+  });
   document.title = t("app.title");
 }
 
@@ -168,6 +171,364 @@ function importThemeFile(file) {
     }
   };
   reader.readAsText(file);
+}
+
+/* ------------------------------------------------------- meta / roster */
+
+let META = null;   // /api/meta 缓存
+let MODELS = null; // /api/models 注册表目录
+
+const OVERRIDES_KEY = "council:roster";
+
+function loadOverrides() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(OVERRIDES_KEY) || "{}");
+    return raw && typeof raw === "object" ? raw : {};
+  } catch (_) { return {}; }
+}
+let OVERRIDES = loadOverrides();
+
+function saveOverrides() {
+  try { localStorage.setItem(OVERRIDES_KEY, JSON.stringify(OVERRIDES)); } catch (_) { /* private mode */ }
+}
+
+// 配置里写死的档位优先如实显示，不误导用户
+function nodeLabel(node) {
+  const base = node.display || node.id;
+  if (node.thinking) return `${base} · ${t("meta.thinking").replace("{level}", node.thinking)}`;
+  return base;
+}
+
+function renderRoster() {
+  const host = $("roster");
+  if (!host || !META) return;
+  const nodes = META.judge_node
+    ? [...META.participants, Object.assign({}, META.judge_node, { is_judge: true })]
+    : META.participants;
+  const names = nodes.map((n) => nodeLabel(n) + (n.is_judge ? " ⚖" : "")).join("、");
+  const judge = META.judge_node
+    ? " · " + t("meta.judge").replace("{name}", META.judge_node.display || META.judge_node.id)
+    : "";
+  text(host, t("meta.roster").replace("{n}", String(nodes.length)).replace("{names}", names) + judge);
+}
+
+function renderRosterEditor() {
+  const host = $("roster-editor");
+  if (!host || !META) return;
+  host.replaceChildren();
+  const nodes = META.judge_node
+    ? [...META.participants, Object.assign({}, META.judge_node, { is_judge: true })]
+    : META.participants;
+  nodes.forEach((node) => {
+    const saved = OVERRIDES[node.id] || {};
+    const row = h("div", "roster-row");
+
+    const name = h("span", "r-name" + (node.is_judge ? " r-judge" : ""));
+    text(name, nodeLabel(node));
+    if (node.is_judge) {
+      // Judge 行旁的「?」：解释独立裁定，以及未配置/失败时转人工审核
+      const tip = h("span", "help-tip");
+      tip.tabIndex = 0;
+      tip.dataset.i18nTip = "roster.judge.help";
+      tip.dataset.tip = t("roster.judge.help");
+      text(tip, "?");
+      row.appendChild(name);
+      row.appendChild(tip);
+    } else {
+      row.appendChild(name);
+    }
+
+    const modelWrap = h("label", "select-wrap r-model-wrap");
+    const modelSel = h("select", "r-model");
+    modelSel.dataset.node = node.id;
+    modelSel.setAttribute("aria-label", t("roster.model"));
+    // 空 title：压制 Chromium 对 select 的自动截断文字提示（移出残留的框）
+    modelSel.setAttribute("title", "");
+    const keep = h("option");
+    keep.value = "";
+    text(keep, t("roster.keep").replace("{model}", node.model_display || node.model));
+    modelSel.appendChild(keep);
+    (MODELS ? MODELS.providers : []).forEach((provider) => {
+      const group = h("optgroup");
+      group.label = provider.display;
+      provider.models.forEach((m) => {
+        const opt = h("option");
+        opt.value = m.id;
+        text(opt, m.display);
+        group.appendChild(opt);
+      });
+      modelSel.appendChild(group);
+    });
+    modelSel.value = saved.model || "";
+    modelWrap.appendChild(modelSel);
+
+    const thinkWrap = h("label", "select-wrap r-think-wrap");
+    const thinkSel = h("select", "r-thinking");
+    thinkSel.dataset.node = node.id;
+    thinkSel.setAttribute("aria-label", t("roster.thinking"));
+    thinkSel.setAttribute("title", "");
+    [
+      ["", "roster.thinking.none"],
+      ["low", "roster.level.low"],
+      ["medium", "roster.level.medium"],
+      ["high", "roster.level.high"],
+    ].forEach(([value, key]) => {
+      const opt = h("option");
+      opt.value = value;
+      text(opt, t(key));
+      thinkSel.appendChild(opt);
+    });
+    thinkWrap.appendChild(thinkSel);
+
+    const syncThinking = () => {
+      const levels = levelsFor(node, modelSel.value);
+      if (!levels.length) {
+        // 不可调档：只读显示当前配置（可能是某档位或空）。
+        thinkSel.disabled = true;
+        thinkSel.value = node.thinking || "";
+      } else {
+        thinkSel.disabled = false;
+        const current = saved.thinking !== undefined ? saved.thinking : node.thinking || "";
+        thinkSel.value = levels.includes(current) ? current : "";
+      }
+    };
+    syncThinking();
+
+    const persist = () => {
+      const entry = {
+        model: modelSel.value,
+        thinking: thinkSel.disabled ? "" : thinkSel.value,
+      };
+      if (entry.model || entry.thinking) OVERRIDES[node.id] = entry;
+      else delete OVERRIDES[node.id];
+      saveOverrides();
+    };
+    modelSel.addEventListener("change", () => { syncThinking(); persist(); });
+    thinkSel.addEventListener("change", persist);
+
+    row.appendChild(modelWrap);
+    row.appendChild(thinkWrap);
+    host.appendChild(row);
+  });
+}
+
+function levelsFor(node, modelOverride) {
+  if (!MODELS) return node.thinking_levels || [];
+  if (!modelOverride) return node.thinking_levels || [];
+  for (const provider of MODELS.providers) {
+    const info = provider.models.find((m) => m.id === modelOverride);
+    if (info) return info.thinking ? info.thinking_levels || [] : [];
+  }
+  return [];
+}
+
+function collectOverrides() {
+  const out = [];
+  document.querySelectorAll("#roster-editor .roster-row").forEach((row) => {
+    const modelSel = row.querySelector("select.r-model");
+    const thinkSel = row.querySelector("select.r-thinking");
+    if (!modelSel) return;
+    const item = {
+      node_id: modelSel.dataset.node,
+      model: modelSel.value || null,
+      thinking: thinkSel && !thinkSel.disabled ? thinkSel.value : null,
+    };
+    if (item.model || item.thinking !== null) out.push(item);
+  });
+  return out;
+}
+
+function renderConfigWarnings() {
+  const host = $("config-warnings");
+  if (!host || !META) return;
+  const warnings = Array.isArray(META.warnings) ? META.warnings : [];
+  if (!warnings.length) { host.classList.add("hidden"); text(host, ""); return; }
+  // CLI `council config-check` 的网页等价物：启动配置的软警告逐条列出。
+  text(host, warnings.map((line) => "⚠ " + line).join("\n"));
+  host.classList.remove("hidden");
+}
+
+/* ------------------------------------------------------- cursor trail */
+
+let fx = null; // 光效句柄：null 表示关闭
+
+function applyFxSetting() {
+  const enabled = localStorage.getItem("council:fx") !== "off";
+  const toggle = $("fx-toggle");
+  if (toggle) toggle.checked = enabled;
+  if (enabled && !fx) fx = initCursorTrail();
+  else if (!enabled && fx) { fx.stop(); fx = null; }
+}
+
+function initCursorTrail() {
+  const canvas = $("fx-canvas");
+  if (!canvas) return null;
+  const reduced = window.matchMedia("(prefers-reduced-motion: reduce)");
+  if (reduced.matches) return null;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return null;
+
+  let raf = 0;
+  const trail = [];            // 连续光拖尾（记录恒星轨迹点）
+  const TRAIL_MS = 500;        // 拖尾渐隐时长
+  let accent = "#4f7cff";
+  let accentRGB = [79, 124, 255];
+  let cx = null;
+  let cy = null;               // 光标位置
+  let sx = null;
+  let sy = null;               // 恒星平滑跟随位置
+  let frame = 0;
+
+  const hexToRgb = (hex) => {
+    const m = /^#?([0-9a-f]{6})$/i.exec(hex);
+    if (!m) return [79, 124, 255];
+    const n = parseInt(m[1], 16);
+    return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+  };
+
+  const readAccent = () => {
+    const raw = getComputedStyle(document.documentElement).getPropertyValue("--accent").trim();
+    if (raw) { accent = raw; accentRGB = hexToRgb(raw); }
+  };
+
+  const resize = () => {
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    canvas.width = Math.round(canvas.clientWidth * dpr);
+    canvas.height = Math.round(canvas.clientHeight * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  };
+
+  // 行星：淡色、适中大小、各自轨道（轨道本身不画出）
+  const planets = [
+    { color: "#e8a6a6", r: 4.2, orbitR: 26, theta: 0.4, omega: 0.75 },
+    { color: "#e0cfa4", r: 2.6, orbitR: 36, theta: 3.3, omega: 0.9 },
+    { color: "#a6bfe8", r: 5.0, orbitR: 48, theta: 2.4, omega: -0.55 },
+    { color: "#a8d8b4", r: 3.4, orbitR: 64, theta: 4.2, omega: 0.45 },
+    { color: "#c2c2cc", r: 3.0, orbitR: 82, theta: 5.5, omega: -0.35 },
+  ].map((p) => ({ ...p, x: null, y: null, vx: 0, vy: 0 }));
+
+  // 恒星与行星始终跟随光标
+  window.addEventListener("pointermove", (event) => {
+    const x = event.clientX;
+    const y = event.clientY;
+    if (cx === null) {
+      cx = x;
+      cy = y;
+      sx = x;
+      sy = y;
+      for (const p of planets) {
+        p.x = sx + Math.cos(p.theta) * p.orbitR;
+        p.y = sy + Math.sin(p.theta) * p.orbitR;
+      }
+      return;
+    }
+    cx = x;
+    cy = y;
+  }, { passive: true });
+
+  window.addEventListener("pointerleave", () => { /* 恒星留在原地继续发光 */ });
+
+  const step = () => {
+    frame += 1;
+    ctx.clearRect(0, 0, canvas.clientWidth, canvas.clientHeight);
+    const [r, g, b] = accentRGB;
+
+    if (cx !== null) {
+      // 恒星平滑跟随光标
+      sx += (cx - sx) * 0.35;
+      sy += (cy - sy) * 0.35;
+
+      // 连续光拖尾：每帧记录恒星位置，形成不断渐隐的一条光线
+      const now = performance.now();
+      trail.push({ x: sx, y: sy, t: now });
+      while (trail.length && now - trail[0].t > TRAIL_MS) trail.shift();
+      if (trail.length > 1) {
+        ctx.lineCap = "round";
+        ctx.lineJoin = "round";
+        for (let i = 1; i < trail.length; i += 1) {
+          const a = trail[i - 1];
+          const c = trail[i];
+          const fade = 1 - (now - c.t) / TRAIL_MS;
+          // 浅蓝外辉 + 亮芯，双层描边模拟发光线条
+          ctx.strokeStyle = `rgba(158,196,255,${(fade * 0.14).toFixed(3)})`;
+          ctx.lineWidth = 1 + 5 * fade;
+          ctx.beginPath();
+          ctx.moveTo(a.x, a.y);
+          ctx.lineTo(c.x, c.y);
+          ctx.stroke();
+          ctx.strokeStyle = `rgba(158,196,255,${(fade * 0.6).toFixed(3)})`;
+          ctx.lineWidth = 0.5 + 2 * fade;
+          ctx.beginPath();
+          ctx.moveTo(a.x, a.y);
+          ctx.lineTo(c.x, c.y);
+          ctx.stroke();
+        }
+      }
+
+      // 行星：锚点沿轨道公转，弹簧引力把行星拉向锚点——
+      // 引力随轨道半径衰减（近紧远松，更有真实感）；
+      // 快速移动时行星被大幅甩在身后，骤停时冲过头再缓慢回摆
+      for (const p of planets) {
+        p.theta += p.omega / 60;
+        const ax = sx + Math.cos(p.theta) * p.orbitR;
+        const ay = sy + Math.sin(p.theta) * p.orbitR;
+        if (p.x === null) { p.x = ax; p.y = ay; }
+        const gpull = 0.009 * (36 / p.orbitR); // 更弱的吸引 + 距离衰减
+        p.vx += (ax - p.x) * gpull;
+        p.vy += (ay - p.y) * gpull;
+        p.vx *= 0.96;               // 低阻尼：惯性滑行更远、回摆更久
+        p.vy *= 0.96;
+        p.x += p.vx;
+        p.y += p.vy;
+      }
+
+      // 恒星：淡蓝色柔光，无实心星核
+      const pulse = 1 + Math.sin(frame * 0.03) * 0.06;
+      const haloR = 16 * pulse;
+      const halo = ctx.createRadialGradient(sx, sy, 0, sx, sy, haloR);
+      halo.addColorStop(0, `rgba(${r},${g},${b},0.45)`);
+      halo.addColorStop(0.4, `rgba(${r},${g},${b},0.16)`);
+      halo.addColorStop(1, `rgba(${r},${g},${b},0)`);
+      ctx.fillStyle = halo;
+      ctx.beginPath();
+      ctx.arc(sx, sy, haloR, 0, Math.PI * 2);
+      ctx.fill();
+
+      // 行星：淡色柔光 + 实心圆
+      for (const p of planets) {
+        ctx.fillStyle = p.color;
+        ctx.globalAlpha = 0.22;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.r * 2.1, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.globalAlpha = 1;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    ctx.globalAlpha = 1;
+    raf = window.requestAnimationFrame(step);
+  };
+
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) window.cancelAnimationFrame(raf);
+    else if (!reduced.matches) raf = window.requestAnimationFrame(step);
+  });
+  window.addEventListener("resize", resize);
+  // 主题切换会改 --accent，低成本周期性跟随
+  window.setInterval(readAccent, 2000);
+
+  readAccent();
+  resize();
+  raf = window.requestAnimationFrame(step);
+  return {
+    stop: () => {
+      window.cancelAnimationFrame(raf);
+      ctx.clearRect(0, 0, canvas.clientWidth, canvas.clientHeight);
+    },
+  };
 }
 
 /* ---------------------------------------------------------------- session */
@@ -564,6 +925,23 @@ async function refreshList() {
         });
         actions.appendChild(resumeBtn);
       }
+      const deleteBtn = h("button", "chip danger");
+      text(deleteBtn, t("list.delete"));
+      deleteBtn.addEventListener("click", async () => {
+        if (!confirm(t("list.delete.confirm"))) return;
+        try {
+          await api(`/api/sessions/${row.session_id}`, { method: "DELETE" });
+          if (SESSION_ID === row.session_id) {
+            SESSION_ID = null;
+            if (WS) { WS.close(); WS = null; }
+            showView("new");
+          }
+          refreshList();
+        } catch (err) {
+          banner($("session-banner"), err.message);
+        }
+      });
+      actions.appendChild(deleteBtn);
       div.appendChild(q);
       div.appendChild(chip);
       div.appendChild(when);
@@ -603,7 +981,7 @@ async function submitNewSession(event) {
     }
     const created = await api("/api/sessions", {
       method: "POST",
-      body: JSON.stringify({ question, files }),
+      body: JSON.stringify({ question, files, overrides: collectOverrides() }),
     });
     $("question").value = "";
     $("files").value = "";
@@ -654,7 +1032,7 @@ async function keyStatus(name) {
 
 async function openKeys() {
   banner($("keys-error"), "");
-  $("keys-overlay").classList.remove("hidden");
+  $("settings-overlay").classList.remove("hidden");
   const rows = [];
   try {
     const overview = await api("/api/keys");
@@ -764,23 +1142,50 @@ async function addCustomKey() {
   }
 }
 
+/* 问号气泡显隐：JS 委托控制——原生 select 弹出层会卡住 CSS :hover，
+   只靠 hover 会在鼠标移出后残留一个框。此处保证移出/点击即隐藏。 */
+function bindHelpTips() {
+  const hideAll = () => {
+    document.querySelectorAll(".help-tip.show").forEach((node) => node.classList.remove("show"));
+  };
+  document.addEventListener("mouseover", (event) => {
+    const tip = event.target instanceof Element ? event.target.closest(".help-tip") : null;
+    if (tip) tip.classList.add("show");
+    else hideAll();
+  });
+  document.addEventListener("mouseout", (event) => {
+    if (event.target instanceof Element && event.target.closest(".help-tip")) hideAll();
+  });
+  document.addEventListener("pointerdown", hideAll);
+  document.addEventListener("focusin", (event) => {
+    hideAll();
+    const tip = event.target instanceof Element ? event.target.closest(".help-tip") : null;
+    if (tip) tip.classList.add("show");
+  });
+  document.addEventListener("focusout", hideAll);
+}
+
 /* ------------------------------------------------------------------- boot */
 
-function bindBoot() {
-  $("btn-lang").addEventListener("click", () => {
-    LANG = LANG === "zh" ? "en" : "zh";
-    localStorage.setItem("council:lang", LANG);
-    loadLocale(LANG).then(() => {
-      const select = $("theme-select");
-      const id = currentTheme ? currentTheme.id : select.value;
-      if (id && id !== "__custom__") {
-        const theme = builtinThemes.find((item) => item.id === id);
-        if (theme) select.value = id;
-      }
-      fetchThemes();
-      refreshList();
-    });
+function switchLang(lang) {
+  LANG = lang === "en" ? "en" : "zh";
+  localStorage.setItem("council:lang", LANG);
+  loadLocale(LANG).then(() => {
+    const select = $("theme-select");
+    const id = currentTheme ? currentTheme.id : select.value;
+    if (id && id !== "__custom__") {
+      const theme = builtinThemes.find((item) => item.id === id);
+      if (theme) select.value = id;
+    }
+    fetchThemes();
+    refreshList();
+    renderRoster();
+    renderRosterEditor();
+    renderConfigWarnings();
   });
+}
+
+function bindBoot() {
   $("btn-home").addEventListener("click", () => { if (SESSION_ID) closeAsk(); showView("new"); });
   $("btn-back").addEventListener("click", () => { closeAsk(); showView("new"); });
   $("theme-select").addEventListener("change", () => {
@@ -796,14 +1201,22 @@ function bindBoot() {
   $("new-form").addEventListener("submit", submitNewSession);
   $("btn-start").disabled = false;
 
-  // Keys panel
-  $("btn-keys").addEventListener("click", openKeys);
+  // Settings panel: cursor effect / theme / language / keys
+  $("btn-settings").addEventListener("click", openKeys);
+  $("settings-overlay").addEventListener("click", (event) => {
+    if (event.target === $("settings-overlay")) $("settings-overlay").classList.add("hidden");
+  });
+  $("fx-toggle").addEventListener("change", () => {
+    localStorage.setItem("council:fx", $("fx-toggle").checked ? "on" : "off");
+    applyFxSetting();
+  });
+  $("lang-select").value = LANG;
+  $("lang-select").addEventListener("change", () => switchLang($("lang-select").value));
+
+  // Keys section (lives inside settings)
   $("btn-keys-custom").addEventListener("click", addCustomKey);
   $("keys-custom-value").addEventListener("keydown", (event) => {
     if (event.key === "Enter") addCustomKey();
-  });
-  $("keys-overlay").addEventListener("click", (event) => {
-    if (event.target === $("keys-overlay")) $("keys-overlay").classList.add("hidden");
   });
 
   bindActions();
@@ -812,6 +1225,8 @@ function bindBoot() {
 async function boot() {
   initSavedTheme();
   bindBoot();
+  bindHelpTips();
+  applyFxSetting();
   await loadLocale(LANG);
   await fetchThemes();
   // Re-apply the persisted theme label once builtins are loaded.
@@ -823,10 +1238,11 @@ async function boot() {
     else select.value = "__custom__";
   }
   try {
-    const meta = await api("/api/meta");
-    const room = $("room");
-    const names = meta.participants.map((p) => p.display || p.id).join("、");
-    text(room, `${meta.participants.length} 名参与者：${names}` + (meta.judge ? ` · judge: ${meta.judge}` : ""));
+    META = await api("/api/meta");
+    try { MODELS = await api("/api/models"); } catch (_) { MODELS = null; }
+    renderRoster();
+    renderRosterEditor();
+    renderConfigWarnings();
     const select = $("policy-select");
     ["continue", "pause", "ask_user"].forEach((value) => {
       const option = h("option");

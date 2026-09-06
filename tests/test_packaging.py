@@ -19,7 +19,7 @@ from council.web.server import create_app
 
 def test_distribution_version_matches_package_attr() -> None:
     installed = importlib.metadata.version("ai-council")
-    assert installed == council.__version__ == "1.0.0"
+    assert installed == council.__version__ == "1.1.0"
 
 
 def test_api_meta_reports_the_single_version(tmp_path: Path) -> None:

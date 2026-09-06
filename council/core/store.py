@@ -216,6 +216,22 @@ class EventStore:
 
         await self._sync(update)
 
+    async def delete_session(self, session_id: str) -> bool:
+        """删除会话及其全部事件（不可恢复）；返回是否确实存在过。"""
+
+        def wipe() -> bool:
+            conn = self._db()
+            row = conn.execute(
+                "SELECT 1 FROM sessions WHERE session_id = ?", (session_id,)
+            ).fetchone()
+            if row is None:
+                return False
+            conn.execute("DELETE FROM events WHERE session_id = ?", (session_id,))
+            conn.execute("DELETE FROM sessions WHERE session_id = ?", (session_id,))
+            return True
+
+        return await self._sync(wipe)
+
     # ---------------------------------------------------------------- events
 
     def _append_sync(self, session_id: str, events: Sequence[Event]) -> list[int]:

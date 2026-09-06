@@ -1,0 +1,183 @@
+# 智谱 GLM（OpenAI 兼容端点）
+# 核实 2026-09-06：GLM-5.3（08-14，后训练强化，思考不可关闭，档位 low/high/max）
+# 与 GLM-5.3-Flash（08-26，320B-A18B 原生多模态、1M 上下文、MIT 开源）在役。
+# GLM 的思考开关是嵌套对象 thinking:{type} —— 旋钮不支持嵌套，
+# 因此逐模型声明 thinking_style = "none"，交由服务端默认行为处理。
+
+[provider]
+id = "zhipu"
+display = "智谱 GLM"
+base_url = "https://open.bigmodel.cn/api/paas/v4"
+secret_env = "ZHIPU_API_KEY"
+adapter = "openai_api"
+docs = "https://docs.bigmodel.cn/cn/guide/develop/http/usage"
+
+[[models]]
+id = "glm-5.3"
+display = "GLM-5.3"
+thinking = true
+max_context_tokens = 205000
+max_output_tokens = 128000
+thinking_style = "none"
+verified = "2026-09-06"
+source = "https://docs.bigmodel.cn/cn/guide/models/"
+
+[[models]]
+id = "glm-5.3-flash"
+display = "GLM-5.3 Flash"
+thinking = true
+max_context_tokens = 1000000
+max_output_tokens = 128000
+thinking_style = "none"
+verified = "2026-09-06"
+source = "https://docs.bigmodel.cn/cn/guide/models/"
+
+[[models]]
+id = "glm-5.2"
+display = "GLM-5.2"
+thinking = true
+max_context_tokens = 205000
+max_output_tokens = 128000
+thinking_style = "none"
+verified = "2026-09-05"
+source = "https://docs.bigmodel.cn/cn/guide/develop/http/usage"
+
+[[models]]
+id = "glm-5.1"
+display = "GLM-5.1"
+thinking = true
+max_context_tokens = 205000
+max_output_tokens = 128000
+thinking_style = "none"
+verified = "2026-09-05"
+source = "https://docs.bigmodel.cn/cn/guide/develop/http/usage"
+
+[[models]]
+id = "glm-5"
+display = "GLM-5"
+thinking = true
+max_context_tokens = 205000
+max_output_tokens = 128000
+thinking_style = "none"
+verified = "2026-09-05"
+source = "https://docs.bigmodel.cn/cn/guide/develop/http/usage"
+
+[[models]]
+id = "glm-5-air"
+display = "GLM-5 Air"
+thinking = true
+max_context_tokens = 205000
+max_output_tokens = 65536
+thinking_style = "none"
+verified = "2026-09-05"
+source = "https://docs.bigmodel.cn/cn/guide/develop/http/usage"
+
+[[models]]
+id = "glm-5-flash"
+display = "GLM-5 Flash"
+thinking = true
+max_context_tokens = 205000
+max_output_tokens = 32768
+thinking_style = "none"
+verified = "2026-09-05"
+source = "https://docs.bigmodel.cn/cn/guide/develop/http/usage"
+
+[[models]]
+id = "glm-4.7"
+display = "GLM-4.7"
+thinking = true
+max_context_tokens = 205000
+max_output_tokens = 128000
+thinking_style = "none"
+verified = "2026-09-05"
+source = "https://docs.bigmodel.cn/cn/guide/develop/http/usage"
+
+[[models]]
+id = "glm-4.6"
+display = "GLM-4.6"
+thinking = true
+max_context_tokens = 205000
+max_output_tokens = 128000
+thinking_style = "none"
+verified = "2026-09-05"
+source = "https://docs.bigmodel.cn/cn/guide/develop/http/usage"
+
+[[models]]
+id = "glm-4.6v"
+display = "GLM-4.6V"
+thinking = false
+max_context_tokens = 131072
+max_output_tokens = 16384
+thinking_style = "none"
+verified = "2026-09-05"
+source = "https://docs.bigmodel.cn/cn/guide/develop/http/usage"
+
+[[models]]
+id = "glm-4.5"
+display = "GLM-4.5"
+thinking = true
+max_context_tokens = 131072
+max_output_tokens = 65536
+thinking_style = "none"
+verified = "2026-09-05"
+source = "https://docs.bigmodel.cn/cn/guide/develop/http/usage"
+
+[[models]]
+id = "glm-4.5-air"
+display = "GLM-4.5 Air"
+thinking = true
+max_context_tokens = 131072
+max_output_tokens = 65536
+thinking_style = "none"
+verified = "2026-09-05"
+source = "https://docs.bigmodel.cn/cn/guide/develop/http/usage"
+
+[[models]]
+id = "glm-4.5-flash"
+display = "GLM-4.5 Flash"
+thinking = true
+max_context_tokens = 131072
+max_output_tokens = 32768
+thinking_style = "none"
+verified = "2026-09-05"
+source = "https://docs.bigmodel.cn/cn/guide/develop/http/usage"
+
+[[models]]
+id = "glm-4.5-x"
+display = "GLM-4.5-X"
+thinking = true
+max_context_tokens = 131072
+max_output_tokens = 65536
+thinking_style = "none"
+verified = "2026-09-05"
+source = "https://docs.bigmodel.cn/cn/guide/develop/http/usage"
+
+[[models]]
+id = "glm-4.5-airx"
+display = "GLM-4.5-AirX"
+thinking = true
+max_context_tokens = 131072
+max_output_tokens = 65536
+thinking_style = "none"
+verified = "2026-09-05"
+source = "https://docs.bigmodel.cn/cn/guide/develop/http/usage"
+
+[[models]]
+id = "glm-4.5v"
+display = "GLM-4.5V"
+thinking = false
+max_context_tokens = 131072
+max_output_tokens = 16384
+thinking_style = "none"
+verified = "2026-09-05"
+source = "https://docs.bigmodel.cn/cn/guide/develop/http/usage"
+
+[[models]]
+id = "glm-4-long"
+display = "GLM-4 Long"
+thinking = false
+max_context_tokens = 1048576
+max_output_tokens = 16384
+thinking_style = "none"
+verified = "2026-09-05"
+source = "https://docs.bigmodel.cn/cn/guide/develop/http/usage"

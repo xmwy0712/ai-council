@@ -1,0 +1,113 @@
+# OpenRouter（OpenAI 兼容网关）
+# 核实 2026-09-06：只收录在 OpenRouter 模型页直接核对过的 slug，
+# 二手来源拼出的 slug 一律不写进来。
+# 网关的思考旋钮是嵌套对象 reasoning:{effort} —— 旋钮只支持标量，
+# 因此逐模型声明 thinking_style = "none"，不做档位翻译。
+
+[provider]
+id = "openrouter"
+display = "OpenRouter"
+base_url = "https://openrouter.ai/api/v1"
+secret_env = "OPENROUTER_API_KEY"
+adapter = "openai_api"
+docs = "https://openrouter.ai/models"
+
+[[models]]
+id = "openai/gpt-6-astra"
+display = "OpenAI GPT-6 Astra (OR)"
+thinking = true
+max_context_tokens = 400000
+max_output_tokens = 128000
+thinking_style = "none"
+verified = "2026-09-05"
+source = "https://openrouter.ai/models"
+
+[[models]]
+id = "anthropic/claude-opus-5"
+display = "Claude Opus 5 (OR)"
+thinking = true
+max_context_tokens = 200000
+max_output_tokens = 64000
+thinking_style = "none"
+verified = "2026-09-05"
+source = "https://openrouter.ai/models"
+
+[[models]]
+id = "anthropic/claude-sonnet-5"
+display = "Claude Sonnet 5 (OR)"
+thinking = true
+max_context_tokens = 200000
+max_output_tokens = 64000
+thinking_style = "none"
+verified = "2026-09-05"
+source = "https://openrouter.ai/models"
+
+[[models]]
+id = "google/gemini-3.8-flash"
+display = "Gemini 3.8 Flash (OR)"
+thinking = true
+max_context_tokens = 1048576
+max_output_tokens = 65536
+thinking_style = "none"
+verified = "2026-09-06"
+source = "https://openrouter.ai/google/gemini-3.8-flash-20260902"
+
+[[models]]
+id = "deepseek/deepseek-v4"
+display = "DeepSeek V4 (OR)"
+thinking = true
+max_context_tokens = 131072
+max_output_tokens = 65536
+thinking_style = "none"
+verified = "2026-09-05"
+source = "https://openrouter.ai/models"
+
+[[models]]
+id = "moonshotai/kimi-k3"
+display = "Kimi K3 (OR)"
+thinking = true
+max_context_tokens = 262144
+max_output_tokens = 65536
+thinking_style = "none"
+verified = "2026-09-05"
+source = "https://openrouter.ai/models"
+
+[[models]]
+id = "z-ai/glm-5.2"
+display = "GLM-5.2 (OR)"
+thinking = true
+max_context_tokens = 205000
+max_output_tokens = 128000
+thinking_style = "none"
+verified = "2026-09-05"
+source = "https://openrouter.ai/models"
+
+[[models]]
+id = "qwen/qwen3.8-max"
+display = "Qwen3.8 Max (OR)"
+thinking = true
+max_context_tokens = 262144
+max_output_tokens = 65536
+thinking_style = "none"
+verified = "2026-09-05"
+source = "https://openrouter.ai/models"
+
+[[models]]
+id = "x-ai/grok-4.6"
+display = "Grok 4.6 (OR)"
+thinking = true
+max_context_tokens = 262144
+max_output_tokens = 65536
+thinking_style = "none"
+verified = "2026-09-05"
+source = "https://openrouter.ai/models"
+
+[[models]]
+id = "meta-llama/llama-5-maverick"
+display = "Llama 5 Maverick (OR)"
+thinking = false
+max_context_tokens = 131072
+max_output_tokens = 32768
+thinking_style = "none"
+verified = "2026-09-05"
+source = "https://openrouter.ai/models"

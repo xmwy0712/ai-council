@@ -49,12 +49,20 @@ def test_overview_lists_presets_with_sources(tmp_path: Path, keyring: None) -> N
     with _client(tmp_path) as client:
         data = client.get("/api/keys").json()
         names = [entry["name"] for entry in data["presets"]]
-        assert names == ["OPENAI_API_KEY", "ANTHROPIC_API_KEY", "GOOGLE_API_KEY"]
-        assert data["statuses"] == {
-            "OPENAI_API_KEY": "unset",
-            "ANTHROPIC_API_KEY": "unset",
-            "GOOGLE_API_KEY": "unset",
-        }
+        assert names == [
+            "OPENAI_API_KEY",
+            "ANTHROPIC_API_KEY",
+            "GOOGLE_API_KEY",
+            "DEEPSEEK_API_KEY",
+            "MOONSHOT_API_KEY",
+            "ZHIPU_API_KEY",
+            "DASHSCOPE_API_KEY",
+            "XAI_API_KEY",
+            "OPENROUTER_API_KEY",
+            "SILICONFLOW_API_KEY",
+            "MODEL_API_KEY",
+        ]
+        assert data["statuses"] == {name: "unset" for name in names}
 
 
 def test_set_then_status_reports_keyring(tmp_path: Path, keyring: None) -> None:

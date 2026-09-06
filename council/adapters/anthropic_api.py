@@ -44,7 +44,8 @@ class AnthropicAdapter:
         self.id = node.id
         self._node = node
         registry = get_registry()
-        provider = registry.provider("anthropic_api")
+        # 节点声明的厂商优先（未来可挂 Anthropic 兼容端点），回退到官方默认值
+        provider = registry.provider(node.adapter) or registry.provider("anthropic_api")
         default_base = provider.base_url if provider else "https://api.anthropic.com"
         self._base_url = str(node.settings.get("base_url") or default_base).rstrip("/")
         secret_env = str(
@@ -56,7 +57,7 @@ class AnthropicAdapter:
         self._client = client
         self._owns_client = client is None
         self._thinking_translation = (
-            registry.translate_thinking("anthropic_api", node.model, node.thinking or "")
+            registry.translate_thinking(node.adapter, node.model, node.thinking or "")
             if node.thinking
             else None
         )

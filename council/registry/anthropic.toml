@@ -1,6 +1,11 @@
 # Anthropic Messages API。
 # budget_tokens 的 low/medium/high 映射是本项目的默认档位（可改，同步更新 docs/PROVIDERS.md）；
-# 其余参数名与取值范围见 docs/PROVIDERS.md（核实 2026-09-02）。
+# 其余参数名与取值范围见 docs/PROVIDERS.md（核实 2026-09-05）。
+#
+# 重要：Claude 5 系改用 Adaptive thinking（嵌套 thinking:{type:"adaptive"}），
+# 适配器会硬编码发送 budget_tokens 块 —— 与 5 系协议冲突会返回 400。
+# 因此 5 系模型一律 thinking = false 且 thinking_style = "none"，交给服务端按默认自适应处理。
+# 4.x 系列已标注退役日期。
 
 [provider]
 id = "anthropic_api"
@@ -19,6 +24,54 @@ medium = 8192
 high = 32768
 
 [[models]]
+id = "claude-fable-5-1"
+display = "Claude Fable 5.1"
+thinking = false
+structured_output = true
+streaming = true
+max_context_tokens = 200000
+max_output_tokens = 64000
+thinking_style = "none"
+verified = "2026-09-05"
+source = "https://console.anthropic.com/docs/en/build-with-claude/extended-thinking"
+
+[[models]]
+id = "claude-opus-5"
+display = "Claude Opus 5"
+thinking = false
+structured_output = true
+streaming = true
+max_context_tokens = 200000
+max_output_tokens = 128000
+thinking_style = "none"
+verified = "2026-09-05"
+source = "https://console.anthropic.com/docs/en/build-with-claude/extended-thinking"
+
+[[models]]
+id = "claude-sonnet-5"
+display = "Claude Sonnet 5"
+thinking = false
+structured_output = true
+streaming = true
+max_context_tokens = 200000
+max_output_tokens = 64000
+thinking_style = "none"
+verified = "2026-09-05"
+source = "https://console.anthropic.com/docs/en/build-with-claude/extended-thinking"
+
+[[models]]
+id = "claude-haiku-5"
+display = "Claude Haiku 5"
+thinking = false
+structured_output = true
+streaming = true
+max_context_tokens = 200000
+max_output_tokens = 64000
+thinking_style = "none"
+verified = "2026-09-05"
+source = "https://console.anthropic.com/docs/en/build-with-claude/extended-thinking"
+
+[[models]]
 id = "claude-sonnet-4-6"
 display = "Claude Sonnet 4.6"
 thinking = true
@@ -26,7 +79,7 @@ structured_output = true
 streaming = true
 max_context_tokens = 200000
 max_output_tokens = 64000
-verified = "2026-09-02"
+verified = "2026-09-05"
 source = "https://console.anthropic.com/docs/en/build-with-claude/extended-thinking"
 
 [[models]]
@@ -37,7 +90,7 @@ structured_output = true
 streaming = true
 max_context_tokens = 200000
 max_output_tokens = 64000
-verified = "2026-09-02"
+verified = "2026-09-05"
 source = "https://console.anthropic.com/docs/en/build-with-claude/extended-thinking"
 
 [[models]]
@@ -48,7 +101,7 @@ structured_output = true
 streaming = true
 max_context_tokens = 200000
 max_output_tokens = 128000
-verified = "2026-09-02"
+verified = "2026-09-05"
 source = "https://console.anthropic.com/docs/en/build-with-claude/extended-thinking"
 
 [[models]]
@@ -59,7 +112,7 @@ structured_output = true
 streaming = true
 max_context_tokens = 200000
 max_output_tokens = 64000
-verified = "2026-09-02"
+verified = "2026-09-05"
 source = "https://console.anthropic.com/docs/en/build-with-claude/extended-thinking"
 
 [[models]]
@@ -70,5 +123,5 @@ structured_output = true
 streaming = true
 max_context_tokens = 200000
 max_output_tokens = 64000
-verified = "2026-09-02"
+verified = "2026-09-05"
 source = "https://console.anthropic.com/docs/en/build-with-claude/extended-thinking"

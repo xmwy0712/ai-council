@@ -1,6 +1,7 @@
 # 本地 CLI 登录态会话（cli_session）。
 # 安全参数（只读/禁工具/非交互）固定在代码里，绝不由本文件控制——
-# 这里只收录各家 CLI 的模型 slug 数据。核实见 docs/PROVIDERS.md（2026-09-02）。
+# 每家 CLI 只收录一条「订阅默认模型」：模型 id 冒号后留空即不向 CLI 传
+# --model，由用户在 CLI 内部自行切换模型与思考档位，网页端不再罗列。
 
 [provider]
 id = "cli_session"
@@ -11,74 +12,14 @@ docs = "docs/PROVIDERS.md"
 style = "none"
 
 [[models]]
-id = "codex:gpt-5.2-codex"
+id = "codex:"
 profile = "codex"
-display = "Codex CLI（默认模型）"
+display = "Codex CLI（订阅默认模型）"
 thinking = false
 structured_output = false
 streaming = false
-verified = "2026-09-02"
-source = "https://skillmd.ai/skills/codex-34"
-
-[[models]]
-id = "agy:Gemini 3.5 Flash (Low)"
-profile = "agy"
-display = "Antigravity · Gemini 3.5 Flash (Low)"
-thinking = false
-structured_output = true
-streaming = false
-verified = "2026-09-02"
-source = "https://codelabs.developers.google.cn/antigravity-cli-hands-on?hl=en"
-
-[[models]]
-id = "agy:Gemini 3.5 Flash (Medium)"
-profile = "agy"
-display = "Antigravity · Gemini 3.5 Flash (Medium)"
-thinking = false
-structured_output = true
-streaming = false
-verified = "2026-09-02"
-source = "https://codelabs.developers.google.cn/antigravity-cli-hands-on?hl=en"
-
-[[models]]
-id = "agy:Gemini 3.5 Flash (High)"
-profile = "agy"
-display = "Antigravity · Gemini 3.5 Flash (High)"
-thinking = false
-structured_output = true
-streaming = false
-verified = "2026-09-02"
-source = "https://codelabs.developers.google.cn/antigravity-cli-hands-on?hl=en"
-
-[[models]]
-id = "agy:Gemini 3.1 Pro (High)"
-profile = "agy"
-display = "Antigravity · Gemini 3.1 Pro (High)"
-thinking = false
-structured_output = true
-streaming = false
-verified = "2026-09-02"
-source = "https://codelabs.developers.google.cn/antigravity-cli-hands-on?hl=en"
-
-[[models]]
-id = "agy:Claude Sonnet 4.6 (Thinking)"
-profile = "agy"
-display = "Antigravity · Claude Sonnet 4.6 (Thinking)"
-thinking = false
-structured_output = true
-streaming = false
-verified = "2026-09-02"
-source = "https://codelabs.developers.google.cn/antigravity-cli-hands-on?hl=en"
-
-[[models]]
-id = "agy:Claude Opus 4.6 (Thinking)"
-profile = "agy"
-display = "Antigravity · Claude Opus 4.6 (Thinking)"
-thinking = false
-structured_output = true
-streaming = false
-verified = "2026-09-02"
-source = "https://codelabs.developers.google.cn/antigravity-cli-hands-on?hl=en"
+verified = "2026-09-06"
+source = "https://developers.openai.com/codex/cli"
 
 [[models]]
 id = "claude:"
@@ -87,5 +28,15 @@ display = "Claude Code（订阅默认模型）"
 thinking = false
 structured_output = true
 streaming = false
-verified = "2026-09-02"
+verified = "2026-09-06"
 source = "https://code.claude.com/docs/ja/headless"
+
+[[models]]
+id = "agy:"
+profile = "agy"
+display = "Antigravity CLI（订阅默认模型）"
+thinking = false
+structured_output = true
+streaming = false
+verified = "2026-09-06"
+source = "https://codelabs.developers.google.cn/antigravity-cli-hands-on"

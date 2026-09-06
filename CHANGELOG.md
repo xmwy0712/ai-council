@@ -5,13 +5,91 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.1.0] - 2026-09-06
+
+第七个里程碑：多厂商注册表扩展、Web 设置中心与可视化打磨。
+
+### Added
+
+- **模型注册表扩展到 14 家厂商 / 139 个模型**（全部官方文档直证，核实日期
+  2026-09-05/06）：新增 DeepSeek、Moonshot Kimi、智谱 GLM（含 GLM-5.3 /
+  GLM-5.3-Flash）、阿里通义 Qwen、xAI Grok、OpenRouter、硅基流动、Ollama、
+  vLLM、Meta Model API（端点已迁移 `api.meta.ai/v1`，密钥变量 `MODEL_API_KEY`）；
+  OpenAI / Anthropic / Google / CLI 清单同步到当日在役世代（GPT-6 家族仅
+  `gpt-6-astra`；Gemini Flash 线到 3.8、Pro 线旗舰仍为 3.1 Pro）。
+- **零代码厂商接入底座**：注册表 `adapter` 字段声明协议实现——新增一家
+  OpenAI 兼容厂商只需一份 TOML；`secret_required = false` 支持本地端点
+  （Ollama / vLLM）缺密钥不发 Authorization；`thinking.extra` 伴生字段
+  （如 DashScope `enable_thinking`）随请求自动合并。
+- **Web 设置中心**：顶栏收敛为「新会谈 + 设置」——鼠标光效开关、主题
+  选择与导入导出、中英文切换、11 家厂商密钥注入全部并入统一面板。
+- **会话级阵容覆盖**：网页端可逐节点临时改模型与思考档位（深拷贝配置 +
+  注册表严格校验，未知节点 / 注册表外模型 / 不可翻译档位一律 422）；
+  续跑自动继承，全局配置不被污染。
+- **会话删除**：`DELETE /api/sessions/{id}`（运行中先终止再清库，404 幂等）+
+  历史列表删除按钮（确认弹窗，中英文案）。
+- **恒星与行星鼠标光效**（可在设置中开关）：淡蓝色恒星光晕 + 五颗淡色行星
+  引力环绕（弹簧物理、惯性甩尾与回摆），移动时留下连续浅蓝光拖尾（0.5s
+  渐隐）；`prefers-reduced-motion` 与高对比模式自动降级。
+- **问号帮助提示**：失败策略、raw 导出、独立 Judge 三处「?」悬停说明
+  （JS 控制显隐，规避原生弹出层卡住 `:hover` 的残留问题）。
+- **全量模型干跑校验**：`tools/check_models.py` + 131 项参数化回归——注册表
+  内每个模型真实实例化适配器并构造调用负载，校验模型 ID、思考旋钮、伴生
+  字段、Anthropic 预算钳制与元数据完备性；新模型条目数据不全会直接测试失败。
+- **CLI 订阅默认模型收敛**：Codex / Claude Code / Antigravity 统一为一条
+  「订阅默认模型」，不向 CLI 传 `--model`，模型切换由用户在 CLI 内完成。
+- **静态模型目录端点** `GET /api/models`；`GET /api/meta` 升级为携带每节点
+  厂商 / 模型显示名 / 思考支持与档位，judge 完整对象。
+- **视觉强化**：环境极光光晕与颗粒层、渐变品牌徽标、玻璃顶栏与半透明毛玻璃
+  卡片、主按钮渐变辉光、聚焦光环、阵容编辑器交互件圆角与悬浮感；
+  所有颜色走主题变量 `color-mix()` 派生，三套主题自动适配。
+- **静态资产 `Cache-Control: no-cache` 中间件**：代码更新后浏览器立即拿到
+  新版本（保留 ETag 304）。
+- 密钥预设扩到 11 家厂商（新增 DeepSeek / Moonshot / 智谱 / 通义 / xAI /
+  OpenRouter / 硅基流动 / Meta）。
+
+### Changed
+
+- 顶栏布局收敛：密钥 / 语言 / 主题等控件并入设置面板。
+- `--glass-fill-card` 类毛玻璃透明度提升，背景光效可透出卡片。
+- `config.example.toml` 增补 10 家厂商接入示例；`docs/PROVIDERS.md` 全量
+  刷新（14 家厂商参数表，核实 2026-09-05/06）。
+- 项目版本升至 `1.1.0`。
+
+### Fixed
+
+- **冻结版 exe 在 Windows GBK 控制台崩溃**：打印 `⚠`/`✓` 等符号触发
+  UnicodeEncodeError。CLI 入口现强制 stdout/stderr 为 UTF-8。
+- 问号气泡被相邻卡片遮挡：卡片 `backdrop-filter` 层叠上下文困住气泡，
+  悬停时整卡抬升解决。
+- 问号气泡被 `overflow: hidden` 裁剪：顶部装饰 sheen 改用
+  `border-radius: inherit` 自贴圆角。
+- 下拉框移出后残留提示框：移除 select 的 `text-overflow: ellipsis` 并
+  挂空 `title`，压制 Chromium 对截断文字的原生提示；页面气泡改 JS 控制显隐。
+
+### Security
+
+- 不变量不变：密钥只写系统钥匙串 / `.env`；附件与模型输出仍以数据区包裹。
+
+### 测试
+
+- 新增约 150 项：注册表厂商矩阵与世代防伪（伪造 slug 回归）、会话覆盖
+  矩阵、131 项全模型干跑、密钥预设清单、删除端点端到端、光效气泡 DOM
+  探针等。合计 349 项（1 跳过）；`ruff` 全过。
+
+### Removed
+
+- `gpt-5.2-chat-latest`、裸 `gpt-6`、`gemini-3.7-pro`、`gemini-3.6-pro`
+  等未证实或已下线的模型条目；DeepSeek 收敛为官方在役的三个模型 ID。
+
 ## [Unreleased]
 
 ### Added
 
-- **Web UI 模型密钥面板**：顶栏「密钥」——OpenAI / Anthropic / Gemini 三家预设与任意
+- **Web UI 模型密钥面板**：OpenAI / Anthropic / Gemini 三家预设与任意
   自定义变量名；只写系统钥匙串、绝不回显；来源状态（环境变量 / .env / 钥匙串 / 未配置）
   实时标注，环境变量遮蔽钥匙串时显式提示。底层新增 `core/secrets.secret_status()`。
+  （1.1.0 起并入设置面板，预设扩至 11 家。）
 - **Windows 三类分发**：
   1. `ai-council.exe`——单文件，下载即用（每次启动需自解压）；
   2. `ai-council-win64.zip`——目录版打包，解压即用、启动无需自解压；
@@ -23,11 +101,6 @@
   `dist/ai-council.exe`；新增 `pip install ".[packaging]"` 可选依赖；release 工作流在打
   `v*` 标签时自动在 windows-latest 上构建 exe、跑一场 fake 会谈冒烟后随 GitHub Release 发布。
   包内数据（Web 静态资源 / registry TOML / 提示词模板）通过 `--collect-data council` 显式收集。
-
-### Fixed
-
-- **冻结版 exe 在 Windows GBK 控制台崩溃**：打印 `⚠`/`✓` 等符号触发 UnicodeEncodeError。
-  CLI 入口现强制 stdout/stderr 为 UTF-8（`errors="replace"`）。
 
 ### 测试
 

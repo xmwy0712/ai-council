@@ -1,0 +1,164 @@
+# 硅基流动 SiliconFlow（OpenAI 兼容端点）
+# 核实 2026-09-05：聚合 Qwen / DeepSeek / GLM / Kimi 等开源权重模型。
+# 思考旋钮为标量 thinking_budget（部分模型需伴生 enable_thinking）。
+
+[provider]
+id = "siliconflow"
+display = "硅基流动 SiliconFlow"
+base_url = "https://api.siliconflow.cn/v1"
+secret_env = "SILICONFLOW_API_KEY"
+adapter = "openai_api"
+docs = "https://docs.siliconflow.cn/cn/userguide/introduction"
+
+[provider.thinking]
+style = "thinking_budget"
+param = "thinking_budget"
+
+[provider.thinking.levels]
+low = 512
+medium = 4096
+high = 16384
+
+[[models]]
+id = "Qwen/Qwen3.8-235B-A22B"
+display = "Qwen3.8-235B-A22B"
+thinking = true
+max_context_tokens = 262144
+max_output_tokens = 65536
+verified = "2026-09-05"
+source = "https://docs.siliconflow.cn/cn/userguide/introduction"
+
+[[models]]
+id = "Qwen/Qwen3.8-32B"
+display = "Qwen3.8-32B"
+thinking = true
+max_context_tokens = 131072
+max_output_tokens = 32768
+verified = "2026-09-05"
+source = "https://docs.siliconflow.cn/cn/userguide/introduction"
+
+[[models]]
+id = "Qwen/Qwen3.7-235B-A22B"
+display = "Qwen3.7-235B-A22B"
+thinking = true
+max_context_tokens = 262144
+max_output_tokens = 65536
+verified = "2026-09-05"
+source = "https://docs.siliconflow.cn/cn/userguide/introduction"
+
+[[models]]
+id = "Qwen/Qwen3-235B-A22B"
+display = "Qwen3-235B-A22B"
+thinking = true
+max_context_tokens = 262144
+max_output_tokens = 65536
+verified = "2026-09-05"
+source = "https://docs.siliconflow.cn/cn/userguide/introduction"
+
+[[models]]
+id = "Qwen/Qwen3-32B"
+display = "Qwen3-32B"
+thinking = true
+max_context_tokens = 131072
+max_output_tokens = 32768
+verified = "2026-09-05"
+source = "https://docs.siliconflow.cn/cn/userguide/introduction"
+
+[[models]]
+id = "deepseek-ai/DeepSeek-V4"
+display = "DeepSeek-V4"
+thinking = true
+max_context_tokens = 131072
+max_output_tokens = 65536
+verified = "2026-09-05"
+source = "https://docs.siliconflow.cn/cn/userguide/introduction"
+
+[[models]]
+id = "deepseek-ai/DeepSeek-V3.2-Exp"
+display = "DeepSeek-V3.2-Exp"
+thinking = true
+max_context_tokens = 131072
+max_output_tokens = 65536
+verified = "2026-09-05"
+source = "https://docs.siliconflow.cn/cn/userguide/introduction"
+
+[[models]]
+id = "deepseek-ai/DeepSeek-R1-0528-Qwen3"
+display = "DeepSeek-R1-0528-Qwen3"
+thinking = true
+max_context_tokens = 131072
+max_output_tokens = 65536
+verified = "2026-09-05"
+source = "https://docs.siliconflow.cn/cn/userguide/introduction"
+
+[[models]]
+id = "zai-org/GLM-5.2"
+display = "GLM-5.2"
+thinking = true
+max_context_tokens = 205000
+max_output_tokens = 128000
+verified = "2026-09-05"
+source = "https://docs.siliconflow.cn/cn/userguide/introduction"
+
+[[models]]
+id = "zai-org/GLM-4.6"
+display = "GLM-4.6"
+thinking = true
+max_context_tokens = 205000
+max_output_tokens = 128000
+verified = "2026-09-05"
+source = "https://docs.siliconflow.cn/cn/userguide/introduction"
+
+[[models]]
+id = "moonshotai/Kimi-K3"
+display = "Kimi-K3"
+thinking = true
+max_context_tokens = 262144
+max_output_tokens = 65536
+verified = "2026-09-05"
+source = "https://docs.siliconflow.cn/cn/userguide/introduction"
+
+[[models]]
+id = "moonshotai/Kimi-K2.7"
+display = "Kimi-K2.7"
+thinking = true
+max_context_tokens = 262144
+max_output_tokens = 32768
+verified = "2026-09-05"
+source = "https://docs.siliconflow.cn/cn/userguide/introduction"
+
+[[models]]
+id = "Pro/meta-llama/Llama-5-Maverick"
+display = "Llama 5 Maverick"
+thinking = false
+max_context_tokens = 131072
+max_output_tokens = 32768
+verified = "2026-09-05"
+source = "https://docs.siliconflow.cn/cn/userguide/introduction"
+
+[[models]]
+id = "Qwen/Qwen3-VL-235B-A22B"
+display = "Qwen3-VL-235B"
+thinking = false
+max_context_tokens = 131072
+max_output_tokens = 16384
+verified = "2026-09-05"
+source = "https://docs.siliconflow.cn/cn/userguide/introduction"
+
+[[models]]
+id = "Qwen/Qwen2.5-72B-Instruct"
+display = "Qwen2.5-72B-Instruct"
+thinking = false
+max_context_tokens = 131072
+max_output_tokens = 16384
+verified = "2026-09-05"
+source = "https://docs.siliconflow.cn/cn/userguide/introduction"
+
+[[models]]
+id = "BAAI/bge-m3"
+display = "BGE-M3（Embedding）"
+thinking = false
+structured_output = false
+max_context_tokens = 8192
+verified = "2026-09-05"
+source = "https://docs.siliconflow.cn/cn/userguide/introduction"
