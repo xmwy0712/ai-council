@@ -266,6 +266,15 @@ function renderRosterEditor() {
     thinkSel.setAttribute("aria-label", t("roster.thinking"));
     thinkSel.setAttribute("title", "");
     // 档位由注册表决定：各厂商数量与命名都不同（GPT-6 五档、GLM-5.3 三档…）
+    const levelsFor = (modelOverride) => {
+      if (!MODELS) return node.thinking_levels || [];
+      if (!modelOverride) return node.thinking_levels || [];
+      for (const provider of MODELS.providers) {
+        const info = provider.models.find((m) => m.id === modelOverride);
+        if (info) return info.thinking ? info.thinking_levels || [] : [];
+      }
+      return [];
+    };
     const levelLabel = (level) => {
       const key = "roster.level." + level;
       const label = t(key);
@@ -284,18 +293,8 @@ function renderRosterEditor() {
         thinkSel.appendChild(opt);
       });
     };
-    buildThinkingOptions();
     thinkWrap.appendChild(thinkSel);
 
-    const levelsFor = (modelOverride) => {
-      if (!MODELS) return node.thinking_levels || [];
-      if (!modelOverride) return node.thinking_levels || [];
-      for (const provider of MODELS.providers) {
-        const info = provider.models.find((m) => m.id === modelOverride);
-        if (info) return info.thinking ? info.thinking_levels || [] : [];
-      }
-      return [];
-    };
     const syncThinking = () => {
       buildThinkingOptions();
       const levels = levelsFor(modelSel.value);
