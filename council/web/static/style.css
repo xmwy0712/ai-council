@@ -224,9 +224,9 @@ footer { text-align: center; color: var(--text-faint); font-size: 12px; padding:
 .card {
   position: relative;
   background: var(--bg-elev); /* fallback */
-  background: color-mix(in srgb, var(--bg-elev) 68%, transparent);
-  -webkit-backdrop-filter: blur(18px) saturate(1.35);
-  backdrop-filter: blur(18px) saturate(1.35);
+  background: color-mix(in srgb, var(--bg-elev) 55%, transparent);
+  -webkit-backdrop-filter: blur(20px) saturate(1.4);
+  backdrop-filter: blur(20px) saturate(1.4);
   border-color: color-mix(in srgb, var(--border) 70%, transparent);
   transition: border-color 160ms ease, box-shadow 160ms ease;
 }
@@ -438,7 +438,7 @@ body {
 /* ---------------------------------------------------------- 玻璃顶栏 */
 
 .topbar {
-  background: color-mix(in srgb, var(--bg-elev) 72%, transparent);
+  background: color-mix(in srgb, var(--bg-elev) 60%, transparent);
   -webkit-backdrop-filter: blur(16px) saturate(1.3);
   backdrop-filter: blur(16px) saturate(1.3);
   border-bottom: 1px solid var(--glass-line);
