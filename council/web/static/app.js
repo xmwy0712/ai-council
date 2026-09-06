@@ -442,7 +442,15 @@ function initCursorTrail() {
 
   window.addEventListener("pointerleave", () => { /* 恒星留在原地继续发光 */ });
 
-  const step = () => {
+    // 可交互卡片区域：行星绕行到这些框内会被「挡住」（每帧擦除其覆盖像素）
+    const drawOccluders = () => {
+      document.querySelectorAll(".card, .topbar").forEach((el) => {
+        const r = el.getBoundingClientRect();
+        if (r.width > 0 && r.height > 0) ctx.clearRect(r.x, r.y, r.width, r.height);
+      });
+    };
+
+    const step = () => {
     frame += 1;
     ctx.clearRect(0, 0, canvas.clientWidth, canvas.clientHeight);
     const [r, g, b] = accentRGB;
@@ -496,7 +504,7 @@ function initCursorTrail() {
         p.y += p.vy;
       }
 
-      // 恒星：淡蓝色柔光，无实心星核
+      // 恒星：淡蓝色柔光，无实心星核（光标本体）
       const pulse = 1 + Math.sin(frame * 0.03) * 0.06;
       const haloR = 16 * pulse;
       const halo = ctx.createRadialGradient(sx, sy, 0, sx, sy, haloR);
@@ -523,6 +531,9 @@ function initCursorTrail() {
     }
 
     ctx.globalAlpha = 1;
+    // 卡片遮挡：所有元素画完后，把可交互框范围内的像素擦除——
+    // 行星/拖尾/恒星进入卡片即被「挡住」
+    drawOccluders();
     raf = window.requestAnimationFrame(step);
   };
 
