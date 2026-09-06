@@ -1,6 +1,8 @@
 # Meta Model API（OpenAI 兼容端点）
-# 核实 2026-09-05：Meta 已将开发者端点从 api.llama.com 迁移到
+# 核实 2026-09-06：Meta 已将开发者端点从 api.llama.com 迁移到
 # https://api.meta.ai/v1，密钥环境变量为 MODEL_API_KEY（不再是 LLAMA_API_KEY）。
+# Muse Spark 1.1/1.2/1.3 推理常开，支持 5 档 reasoning_effort：
+# minimal / low / medium / high / xhigh（默认 medium，无 max 档）。
 
 [provider]
 id = "meta"
@@ -14,6 +16,9 @@ docs = "https://dev.meta.ai"
 id = "muse-spark-1.3"
 display = "Muse Spark 1.3"
 thinking = true
+thinking_style = "enum_effort"
+param = "reasoning_effort"
+levels = { minimal = "minimal", low = "low", medium = "medium", high = "high", xhigh = "xhigh" }
 max_context_tokens = 131072
 max_output_tokens = 32768
 verified = "2026-09-05"
@@ -23,6 +28,9 @@ source = "https://dev.meta.ai"
 id = "muse-spark-1.2"
 display = "Muse Spark 1.2"
 thinking = true
+thinking_style = "enum_effort"
+param = "reasoning_effort"
+levels = { minimal = "minimal", low = "low", medium = "medium", high = "high", xhigh = "xhigh" }
 max_context_tokens = 131072
 max_output_tokens = 32768
 verified = "2026-09-05"
@@ -31,7 +39,10 @@ source = "https://dev.meta.ai"
 [[models]]
 id = "muse-spark-1.1"
 display = "Muse Spark 1.1"
-thinking = false
+thinking = true
+thinking_style = "enum_effort"
+param = "reasoning_effort"
+levels = { minimal = "minimal", low = "low", medium = "medium", high = "high", xhigh = "xhigh" }
 max_context_tokens = 131072
 max_output_tokens = 32768
 verified = "2026-09-05"
@@ -41,6 +52,9 @@ source = "https://dev.meta.ai"
 id = "muse-spark-1.3-contributor"
 display = "Muse Spark 1.3 Contributor"
 thinking = true
+thinking_style = "enum_effort"
+param = "reasoning_effort"
+levels = { minimal = "minimal", low = "low", medium = "medium", high = "high", xhigh = "xhigh" }
 max_context_tokens = 131072
 max_output_tokens = 32768
 verified = "2026-09-05"

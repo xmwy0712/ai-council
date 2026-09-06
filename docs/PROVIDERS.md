@@ -202,6 +202,8 @@ TODO：官方是否有直接控制思考预算的 CLI 参数（本次未取到�
 | Grok 4.5 / 4.6 | `reasoning_effort` | low / medium / high | 默认 high，推理不可关闭 |
 | 通义 Qwen（DashScope） | `thinking_budget` + `enable_thinking` | 整数 token 档位 | 伴生字段经 `thinking.extra` 发送 |
 | Ollama | `think` | low / medium / high（及 true/false） | 原生参数直通 |
+| Meta Muse Spark 1.1/1.2/1.3 | `reasoning_effort` | minimal / low / medium / high / xhigh | 默认 medium；推理常开不可关；无 max 档 |
+| 硅基流动（聚合平台） | `thinking_budget` / `enable_thinking` | 统一 token 预算旋钮 | 聚合层自带旋钮，可作用于 GLM / Kimi / Qwen 等托管模型——即使官方 API 没有标量档位，经硅基流动也可调 |
 
 ## 统一错误分类映射（各适配器共用）
 
