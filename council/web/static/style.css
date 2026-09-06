@@ -414,17 +414,25 @@ body {
 .scene { position: fixed; inset: 0; z-index: 0; pointer-events: none; }
 .scene-glow {
   position: absolute; border-radius: 50%;
-  filter: blur(90px); opacity: 0.5;
+  filter: blur(70px); opacity: 0.8;
   animation: drift 26s var(--ease-out) infinite alternate;
 }
 .scene-glow--a {
-  width: 560px; height: 560px; top: -180px; right: -120px;
-  background: radial-gradient(circle, color-mix(in srgb, var(--accent) 16%, transparent), transparent 70%);
+  width: 640px; height: 640px; top: -140px; right: 6%;
+  background: radial-gradient(circle, color-mix(in srgb, var(--accent) 30%, transparent), transparent 68%);
 }
 .scene-glow--b {
-  width: 480px; height: 480px; bottom: -200px; left: -140px;
-  background: radial-gradient(circle, color-mix(in srgb, #8b5cf6 12%, transparent), transparent 70%);
+  width: 560px; height: 560px; bottom: -160px; left: -80px;
+  background: radial-gradient(circle, color-mix(in srgb, #8b5cf6 22%, transparent), transparent 68%);
   animation-delay: -13s;
+}
+/* 第三团：压在内容列正后方——毛玻璃必须有物可模糊，
+   否则 blur 对纯色背景在视觉上等于不存在 */
+.scene-glow--c {
+  width: 720px; height: 520px; top: 60px; left: 50%;
+  margin-left: -560px;
+  background: radial-gradient(circle, color-mix(in srgb, #22d3ee 14%, transparent), transparent 66%);
+  animation-delay: -7s;
 }
 @keyframes drift {
   from { transform: translate3d(0, 0, 0) scale(1); }

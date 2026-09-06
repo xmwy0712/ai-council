@@ -301,7 +301,15 @@ function renderRosterEditor() {
       if (!levels.length) {
         // 不可调档：只读显示当前配置（可能是某档位或空）。
         thinkSel.disabled = true;
-        thinkSel.value = node.thinking || "";
+        const current = node.thinking || "";
+        // 当前值不在选项里时补一个只读选项，否则 select 显示空白
+        if (current && ![...thinkSel.options].some((o) => o.value === current)) {
+          const opt = h("option");
+          opt.value = current;
+          text(opt, levelLabel(current));
+          thinkSel.appendChild(opt);
+        }
+        thinkSel.value = current;
       } else {
         thinkSel.disabled = false;
         const current = saved.thinking !== undefined ? saved.thinking : node.thinking || "";
