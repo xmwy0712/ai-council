@@ -125,10 +125,17 @@ class AnthropicAdapter:
         if system_parts:
             payload["system"] = "\n\n".join(system_parts)
         if self._thinking_translation is not None and req.thinking:
-            budget = int(self._thinking_translation.value)
-            # Official constraint: budget_tokens >= 1024 and < max_tokens.
-            budget = max(1024, min(budget, max_tokens - 1))
-            payload["thinking"] = {"type": "enabled", "budget_tokens": budget}
+            if self._thinking_translation.style == "enum_effort":
+                # Claude 4.6+ / 5 系：adaptive thinking —— 官方迁移要求
+                # 去掉 budget_tokens、改用 thinking:{type:"adaptive"} 由
+                # output_config.effort 控制深度；5 系收到 budget_tokens 会 400。
+                payload["thinking"] = {"type": "adaptive"}
+                payload["output_config"] = {"effort": str(self._thinking_translation.value)}
+            else:
+                budget = int(self._thinking_translation.value)
+                # Official constraint: budget_tokens >= 1024 and < max_tokens.
+                budget = max(1024, min(budget, max_tokens - 1))
+                payload["thinking"] = {"type": "enabled", "budget_tokens": budget}
         return payload
 
     async def _chat(self, req: ChatRequest) -> AsyncIterator[ChatChunk]:

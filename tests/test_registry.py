@@ -263,3 +263,53 @@ def test_nested_object_knobs_stay_none() -> None:
         ("vllm", "qwen3-32b"),
     ):
         assert registry.translate_thinking(provider_id, model_id, "high") is None, provider_id
+
+
+# --------------------------------------- 思考档位是数据，不是硬编码三档
+
+
+def test_effort_levels_are_per_model_not_three() -> None:
+    """各厂商档位数量与命名不同：GPT-6 五档、GLM-5.3 三档、GPT-5.2 四档。"""
+    registry = Registry.load()
+    astra = sorted(registry.thinking_spec("openai_api", "gpt-6-astra").levels)
+    assert astra == ["high", "low", "max", "medium", "xhigh"]
+    assert "none" not in astra and "minimal" not in astra  # Astra 发 none 会 400
+
+    sol = sorted(registry.thinking_spec("openai_api", "gpt-5.6-sol").levels)
+    assert sol == ["high", "low", "medium", "none", "xhigh"]
+
+    old = sorted(registry.thinking_spec("openai_api", "gpt-5.2").levels)
+    assert old == ["high", "low", "medium", "none"]  # xhigh/max 不支持
+
+    # DeepSeek / GLM-5.3：low / high / max（无 medium）
+    assert sorted(registry.thinking_spec("deepseek", "deepseek-v4-flash").levels) == [
+        "high",
+        "low",
+        "max",
+    ]
+    assert sorted(registry.thinking_spec("zhipu", "glm-5.3").levels) == ["high", "low", "max"]
+    # GLM-5.2 继承提供者七档；GLM-4.6 只有嵌套 thinking，无标量档位
+    assert len(registry.thinking_spec("zhipu", "glm-5.2").levels) == 7
+    assert registry.thinking_spec("zhipu", "glm-4.6").levels == {}
+
+
+def test_claude5_uses_adaptive_effort_not_budget() -> None:
+    """Claude 5 走 output_config.effort（4.7+ 收到 budget_tokens 会 400）。"""
+    registry = Registry.load()
+    spec = registry.thinking_spec("anthropic_api", "claude-opus-5")
+    assert spec.style == "enum_effort"
+    assert spec.param == "effort"
+    assert sorted(spec.levels) == ["high", "low", "max", "medium", "xhigh"]
+    # 4.x 仍走 token 预算
+    assert registry.thinking_spec("anthropic_api", "claude-sonnet-4-6").style == "budget_tokens"
+
+
+def test_gemini_flash_has_minimal_pro_does_not() -> None:
+    registry = Registry.load()
+    flash = sorted(registry.thinking_spec("google_api", "gemini-3.8-flash").levels)
+    assert flash == ["high", "low", "medium", "minimal"]
+    pro = sorted(registry.thinking_spec("google_api", "gemini-3.1-pro-preview").levels)
+    assert pro == ["high", "low", "medium"]
+    assert registry.translate_thinking("google_api", "gemini-3.8-flash", "minimal").value == (
+        "MINIMAL"
+    )

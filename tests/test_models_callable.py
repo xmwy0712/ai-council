@@ -116,8 +116,14 @@ def test_model_builds_valid_payload(provider_id: str, model_id: str) -> None:
         payload = adapter._payload(req)
         assert "max_tokens" in payload
         if translation is not None and thinking:
-            block = payload.get("thinking") or {}
-            assert block.get("budget_tokens") == translation.value
+            if spec.style == "enum_effort":
+                # Claude 4.6+/5：adaptive thinking + output_config.effort
+                assert (payload.get("thinking") or {}).get("type") == "adaptive"
+                assert (payload.get("output_config") or {}).get("effort") == translation.value
+                assert "budget_tokens" not in (payload.get("thinking") or {})
+            else:
+                block = payload.get("thinking") or {}
+                assert block.get("budget_tokens") == translation.value
         else:
             assert "thinking" not in payload, "非思考模型不应携带 thinking 块"
     elif isinstance(adapter, GoogleAdapter):

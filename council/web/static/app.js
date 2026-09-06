@@ -225,6 +225,7 @@ function renderRosterEditor() {
 
     const name = h("span", "r-name" + (node.is_judge ? " r-judge" : ""));
     text(name, nodeLabel(node));
+    row.appendChild(name);
     if (node.is_judge) {
       // Judge 行旁的「?」：解释独立裁定，以及未配置/失败时转人工审核
       const tip = h("span", "help-tip");
@@ -232,10 +233,7 @@ function renderRosterEditor() {
       tip.dataset.i18nTip = "roster.judge.help";
       tip.dataset.tip = t("roster.judge.help");
       text(tip, "?");
-      row.appendChild(name);
       row.appendChild(tip);
-    } else {
-      row.appendChild(name);
     }
 
     const modelWrap = h("label", "select-wrap r-model-wrap");
@@ -267,21 +265,40 @@ function renderRosterEditor() {
     thinkSel.dataset.node = node.id;
     thinkSel.setAttribute("aria-label", t("roster.thinking"));
     thinkSel.setAttribute("title", "");
-    [
-      ["", "roster.thinking.none"],
-      ["low", "roster.level.low"],
-      ["medium", "roster.level.medium"],
-      ["high", "roster.level.high"],
-    ].forEach(([value, key]) => {
-      const opt = h("option");
-      opt.value = value;
-      text(opt, t(key));
-      thinkSel.appendChild(opt);
-    });
+    // 档位由注册表决定：各厂商数量与命名都不同（GPT-6 五档、GLM-5.3 三档…）
+    const levelLabel = (level) => {
+      const key = "roster.level." + level;
+      const label = t(key);
+      return label === key ? level : label; // 未收录的档位直接显示原名
+    };
+    const buildThinkingOptions = () => {
+      thinkSel.replaceChildren();
+      const unset = h("option");
+      unset.value = "";
+      text(unset, t("roster.thinking.none"));
+      thinkSel.appendChild(unset);
+      levelsFor(modelSel.value || node.model).forEach((level) => {
+        const opt = h("option");
+        opt.value = level;
+        text(opt, levelLabel(level));
+        thinkSel.appendChild(opt);
+      });
+    };
+    buildThinkingOptions();
     thinkWrap.appendChild(thinkSel);
 
+    const levelsFor = (modelOverride) => {
+      if (!MODELS) return node.thinking_levels || [];
+      if (!modelOverride) return node.thinking_levels || [];
+      for (const provider of MODELS.providers) {
+        const info = provider.models.find((m) => m.id === modelOverride);
+        if (info) return info.thinking ? info.thinking_levels || [] : [];
+      }
+      return [];
+    };
     const syncThinking = () => {
-      const levels = levelsFor(node, modelSel.value);
+      buildThinkingOptions();
+      const levels = levelsFor(modelSel.value);
       if (!levels.length) {
         // 不可调档：只读显示当前配置（可能是某档位或空）。
         thinkSel.disabled = true;
@@ -310,16 +327,6 @@ function renderRosterEditor() {
     row.appendChild(thinkWrap);
     host.appendChild(row);
   });
-}
-
-function levelsFor(node, modelOverride) {
-  if (!MODELS) return node.thinking_levels || [];
-  if (!modelOverride) return node.thinking_levels || [];
-  for (const provider of MODELS.providers) {
-    const info = provider.models.find((m) => m.id === modelOverride);
-    if (info) return info.thinking ? info.thinking_levels || [] : [];
-  }
-  return [];
 }
 
 function collectOverrides() {
@@ -530,6 +537,31 @@ function initCursorTrail() {
     },
   };
 }
+
+/* 问号气泡显隐：JS 委托控制——原生 select 弹出层会卡住 CSS :hover，
+   只靠 hover 会在鼠标移出后残留一个框。此处保证移出/点击即隐藏。 */
+function bindHelpTips() {
+  const hideAll = () => {
+    document.querySelectorAll(".help-tip.show").forEach((node) => node.classList.remove("show"));
+  };
+  document.addEventListener("mouseover", (event) => {
+    const tip = event.target instanceof Element ? event.target.closest(".help-tip") : null;
+    if (tip) tip.classList.add("show");
+    else hideAll();
+  });
+  document.addEventListener("mouseout", (event) => {
+    if (event.target instanceof Element && event.target.closest(".help-tip")) hideAll();
+  });
+  document.addEventListener("pointerdown", hideAll);
+  document.addEventListener("focusin", (event) => {
+    hideAll();
+    const tip = event.target instanceof Element ? event.target.closest(".help-tip") : null;
+    if (tip) tip.classList.add("show");
+  });
+  document.addEventListener("focusout", hideAll);
+}
+
+/* ---------------------------------------------------------------- session */
 
 /* ---------------------------------------------------------------- session */
 
@@ -1140,29 +1172,6 @@ async function addCustomKey() {
   } catch (err) {
     banner($("keys-error"), `${t("keys.error.save")}: ${err.message}`);
   }
-}
-
-/* 问号气泡显隐：JS 委托控制——原生 select 弹出层会卡住 CSS :hover，
-   只靠 hover 会在鼠标移出后残留一个框。此处保证移出/点击即隐藏。 */
-function bindHelpTips() {
-  const hideAll = () => {
-    document.querySelectorAll(".help-tip.show").forEach((node) => node.classList.remove("show"));
-  };
-  document.addEventListener("mouseover", (event) => {
-    const tip = event.target instanceof Element ? event.target.closest(".help-tip") : null;
-    if (tip) tip.classList.add("show");
-    else hideAll();
-  });
-  document.addEventListener("mouseout", (event) => {
-    if (event.target instanceof Element && event.target.closest(".help-tip")) hideAll();
-  });
-  document.addEventListener("pointerdown", hideAll);
-  document.addEventListener("focusin", (event) => {
-    hideAll();
-    const tip = event.target instanceof Element ? event.target.closest(".help-tip") : null;
-    if (tip) tip.classList.add("show");
-  });
-  document.addEventListener("focusout", hideAll);
 }
 
 /* ------------------------------------------------------------------- boot */

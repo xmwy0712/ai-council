@@ -115,5 +115,9 @@
   "keys.error.save": "保存失败",
   "keys.error.badname": "变量名只能含字母、数字与下划线，且不能以数字开头。",
   "drift.note": "配置已变化，已按旧配置继续。",
-  "footer": "事件只写应用数据目录；导出由浏览器下载完成。"
+  "footer": "事件只写应用数据目录；导出由浏览器下载完成。",
+  "roster.level.none": "思考：关闭",
+  "roster.level.minimal": "思考：极简",
+  "roster.level.xhigh": "思考：极高",
+  "roster.level.max": "思考：最高"
 }

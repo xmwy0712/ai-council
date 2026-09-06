@@ -20,10 +20,11 @@ docs = "https://api-docs.deepseek.com/quick_start/pricing"
 style = "enum_effort"
 param = "reasoning_effort"
 
+# 官方推理强度：low / high(默认) / max —— 无 medium 档
 [provider.thinking.levels]
 low = "low"
-medium = "high"
-high = "max"
+high = "high"
+max = "max"
 
 [[models]]
 id = "deepseek-v4-pro"

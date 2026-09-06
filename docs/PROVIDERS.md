@@ -179,6 +179,30 @@ TODO：官方是否有直接控制思考预算的 CLI 参数（本次未取到�
 
 **端点迁移**：开发者端点已从 `api.llama.com` 迁移到 `https://api.meta.ai/v1`（本机 WebFetch 直读确认），密钥变量由 `LLAMA_API_KEY` 改为 `MODEL_API_KEY`。模型：`muse-spark-1.3`、`muse-spark-1.2`、`muse-spark-1.1`、`muse-spark-1.3-contributor`、`muse-spark-1.0`。
 
+## 思考档位对照（核实 2026-09-06）
+
+**档位是数据不是代码**：每家、甚至每个模型可用的档位都不同，一律由
+`council/registry/*.toml` 声明（可逐模型覆盖），网页端下拉框与后端校验
+都按注册表动态生成，不再假定 low/medium/high 三档。
+
+| 厂商 / 模型 | 参数 | 可用档位 | 备注 |
+|---|---|---|---|
+| `gpt-6-astra` | `reasoning_effort` | low / medium / high / **xhigh** / **max** | 发 `none` 或 `minimal` 返回 400 |
+| `gpt-5.6-sol/terra/luna` | `reasoning_effort` | none / low / medium / high / xhigh | `max` 仅 Responses API 可用 |
+| `gpt-5.3-codex` / `gpt-5.2` / `gpt-5.1` / `gpt-5-mini` | `reasoning_effort` | none / low / medium / high | 不支持 xhigh / max；`minimal` 仅初代 GPT-5 |
+| Claude 5 系（Opus/Sonnet/Haiku 5、Fable 5.1） | `output_config.effort` + `thinking:{type:"adaptive"}` | low / medium / high / xhigh / max | 4.7+ 收到 `budget_tokens` 直接 400 |
+| Claude 4.x | `thinking.budget_tokens` | low(2048) / medium(8192) / high(32768) | 官方约束：≥1024 且 < max_tokens |
+| Gemini 3 Flash（含 3.8/3.7/3.6/3.5/Flash-Lite/3.1-Flash-Lite） | `thinkingLevel` | **MINIMAL** / LOW / MEDIUM / HIGH | Pro 系列无 MINIMAL |
+| Gemini 3.1 Pro | `thinkingLevel` | LOW / MEDIUM / HIGH | 默认 HIGH |
+| Gemini 2.5 系 | `thinkingBudget` | 整数 token（低 512/1024 ~ 高 8192/16384） | 与 thinkingLevel 不可混用 |
+| DeepSeek V4 系 | `reasoning_effort` | **low / high / max**（无 medium） | 默认 high；另有嵌套 `thinking` 可开关 |
+| GLM-5.3 / 5.3-Flash | `reasoning_effort` | **low / high / max** | 默认 max，思考不可关闭 |
+| GLM-5.2 | `reasoning_effort` | none / minimal / low / medium / high / xhigh / max | medium/low→high、xhigh→max、minimal/none 放弃思考 |
+| GLM-5.1 / 5 / 4.x | 嵌套 `thinking` | 不可调（档位只读） | 官方未提供标量档位 |
+| Grok 4.5 / 4.6 | `reasoning_effort` | low / medium / high | 默认 high，推理不可关闭 |
+| 通义 Qwen（DashScope） | `thinking_budget` + `enable_thinking` | 整数 token 档位 | 伴生字段经 `thinking.extra` 发送 |
+| Ollama | `think` | low / medium / high（及 true/false） | 原生参数直通 |
+
 ## 统一错误分类映射（各适配器共用）
 
 | HTTP / 现象 | ErrorKind | 可重试 |

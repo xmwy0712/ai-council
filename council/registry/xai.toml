@@ -13,6 +13,7 @@ docs = "https://docs.x.ai/docs/models"
 style = "enum_effort"
 param = "reasoning_effort"
 
+# grok-4.5/4.6：reasoning_effort = low / medium / high，默认 high，不可关闭
 [provider.thinking.levels]
 low = "low"
 medium = "medium"

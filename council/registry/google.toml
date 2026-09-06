@@ -17,6 +17,7 @@ docs = "https://developers.generativeai.google/api/generate-content"
 style = "thinking_level"
 param = "thinkingLevel"
 
+# Gemini 3 Flash 支持 4 档（MINIMAL 起）；Pro / 3.1 Pro 无 MINIMAL（逐模型覆盖）
 [provider.thinking.levels]
 low = "LOW"
 medium = "MEDIUM"
@@ -24,6 +25,9 @@ high = "HIGH"
 
 [[models]]
 id = "gemini-3.8-flash"
+thinking_style = "thinking_level"
+param = "thinkingLevel"
+levels = { minimal = "MINIMAL", low = "LOW", medium = "MEDIUM", high = "HIGH" }
 display = "Gemini 3.8 Flash"
 thinking = true
 structured_output = true
@@ -35,6 +39,9 @@ source = "https://antigravity.google/blog/gemini-3-8-flash-in-google-antigravity
 
 [[models]]
 id = "gemini-3.7-flash"
+thinking_style = "thinking_level"
+param = "thinkingLevel"
+levels = { minimal = "MINIMAL", low = "LOW", medium = "MEDIUM", high = "HIGH" }
 display = "Gemini 3.7 Flash"
 thinking = true
 structured_output = true
@@ -46,6 +53,9 @@ source = "https://developers.generativeai.google/api/generate-content"
 
 [[models]]
 id = "gemini-3.6-flash"
+thinking_style = "thinking_level"
+param = "thinkingLevel"
+levels = { minimal = "MINIMAL", low = "LOW", medium = "MEDIUM", high = "HIGH" }
 display = "Gemini 3.6 Flash"
 thinking = true
 structured_output = true
@@ -57,6 +67,9 @@ source = "https://developers.generativeai.google/api/generate-content"
 
 [[models]]
 id = "gemini-3.5-flash"
+thinking_style = "thinking_level"
+param = "thinkingLevel"
+levels = { minimal = "MINIMAL", low = "LOW", medium = "MEDIUM", high = "HIGH" }
 display = "Gemini 3.5 Flash"
 thinking = true
 structured_output = true
@@ -68,6 +81,9 @@ source = "https://developers.generativeai.google/api/generate-content"
 
 [[models]]
 id = "gemini-3.5-flash-lite"
+thinking_style = "thinking_level"
+param = "thinkingLevel"
+levels = { minimal = "MINIMAL", low = "LOW", medium = "MEDIUM", high = "HIGH" }
 display = "Gemini 3.5 Flash-Lite"
 thinking = true
 structured_output = true
@@ -79,6 +95,9 @@ source = "https://developers.generativeai.google/api/generate-content"
 
 [[models]]
 id = "gemini-3-flash-preview"
+thinking_style = "thinking_level"
+param = "thinkingLevel"
+levels = { minimal = "MINIMAL", low = "LOW", medium = "MEDIUM", high = "HIGH" }
 display = "Gemini 3 Flash (Preview)"
 thinking = true
 structured_output = true
@@ -90,6 +109,9 @@ source = "https://developers.generativeai.google/api/generate-content"
 
 [[models]]
 id = "gemini-3.1-flash-lite"
+thinking_style = "thinking_level"
+param = "thinkingLevel"
+levels = { minimal = "MINIMAL", low = "LOW", medium = "MEDIUM", high = "HIGH" }
 display = "Gemini 3.1 Flash-Lite"
 thinking = true
 structured_output = true

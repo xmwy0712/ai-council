@@ -61,26 +61,29 @@ PRESET_SECRETS: tuple[tuple[str, str], ...] = (
 
 _KEY_NAME = r"^[A-Za-z_][A-Za-z0-9_]*$"
 
-_THINKING_LEVEL = r"^(|low|medium|high)$"
-
 
 class _UploadFile(BaseModel):
     name: str = Field(min_length=1, max_length=255)
     content: str = Field(max_length=8 * 1024 * 1024)
 
 
+class _NodeOverride(BaseModel):
+    """会话级阵容覆盖：仅影响本场会议，不写回全局配置。
+
+    档位取值由注册表决定（各厂商档位数量不同：GPT-6 有 5 档、Gemini Flash
+    有 4 档、DeepSeek/GLM-5.3 只有 3 档），因此这里不做固定枚举校验，
+    交由 _apply_overrides 按注册表拒绝。
+    """
+
+    node_id: str = Field(min_length=1, max_length=64)
+    model: str | None = Field(default=None, max_length=128)
+    thinking: str | None = Field(default=None, max_length=32)
+
+
 class _NewSession(BaseModel):
     question: str = Field(min_length=0, max_length=20000)
     files: list[_UploadFile] = Field(default_factory=list)
     overrides: list[_NodeOverride] = Field(default_factory=list)
-
-
-class _NodeOverride(BaseModel):
-    """会话级阵容覆盖：仅影响本场会议，不写回全局配置。"""
-
-    node_id: str = Field(min_length=1, max_length=64)
-    model: str | None = Field(default=None, max_length=128)
-    thinking: str | None = Field(default=None, pattern=_THINKING_LEVEL)
 
 
 class _ActionBody(BaseModel):
@@ -158,7 +161,7 @@ def create_app(
 
         保留 ETag：内容没变时 304 依旧生效，只禁掉「猜测缓存」。
         """
-        response = cast(Response, await call_next(request))
+        response = await call_next(request)
         path = request.url.path
         if path == "/" or path.endswith((".js", ".css", ".html", ".json")):
             response.headers["Cache-Control"] = "no-cache"
@@ -256,10 +259,15 @@ def create_app(
                             status_code=422,
                             detail=f"模型 {node.model!r} 不支持思考等级",
                         )
-                    if registry.translate_thinking(node.adapter, node.model, override.thinking) is None:
+                    spec = registry.thinking_spec(node.adapter, node.model)
+                    if override.thinking not in spec.levels:
+                        known = "、".join(sorted(spec.levels)) or "（该模型无可用档位）"
                         raise HTTPException(
                             status_code=422,
-                            detail=f"模型 {node.model!r} 不支持思考等级 {override.thinking!r}",
+                            detail=(
+                                f"模型 {node.model!r} 不支持思考等级 {override.thinking!r}；"
+                                f"可选档位：{known}"
+                            ),
                         )
                 node.thinking = override.thinking or None
         return effective
@@ -321,8 +329,9 @@ def create_app(
     async def delete_session(session_id: str, request: Request) -> dict[str, bool]:
         manager = _manager(request)
         # 运行中的会话先终止并卸载，再抹掉存储
-        if (hub := manager.hub(session_id)) is not None:
+        if manager.hub(session_id) is not None:
             try:
+                hub = manager.hub(session_id)
                 hub.stop()
             except HubError:
                 pass

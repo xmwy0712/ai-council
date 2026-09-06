@@ -12,13 +12,32 @@ secret_env = "ZHIPU_API_KEY"
 adapter = "openai_api"
 docs = "https://docs.bigmodel.cn/cn/guide/develop/http/usage"
 
+# GLM-5.2 及以上支持标量 reasoning_effort（官方文档：
+# max/xhigh/high/medium/low/minimal/none；5.2 上 medium/low 等价于 high，
+# xhigh 等价于 max，minimal/none 放弃思考）。旧款（4.x / 5 / 5.1 等）
+# 只支持嵌套 thinking 对象，档位不可调（逐模型 thinking_style = "none"）。
+[provider.thinking]
+style = "enum_effort"
+param = "reasoning_effort"
+
+[provider.thinking.levels]
+none = "none"
+minimal = "minimal"
+low = "low"
+medium = "medium"
+high = "high"
+xhigh = "xhigh"
+max = "max"
+
 [[models]]
 id = "glm-5.3"
 display = "GLM-5.3"
 thinking = true
 max_context_tokens = 205000
 max_output_tokens = 128000
-thinking_style = "none"
+thinking_style = "enum_effort"
+param = "reasoning_effort"
+levels = { low = "low", high = "high", max = "max" }
 verified = "2026-09-06"
 source = "https://docs.bigmodel.cn/cn/guide/models/"
 
@@ -28,7 +47,9 @@ display = "GLM-5.3 Flash"
 thinking = true
 max_context_tokens = 1000000
 max_output_tokens = 128000
-thinking_style = "none"
+thinking_style = "enum_effort"
+param = "reasoning_effort"
+levels = { low = "low", high = "high", max = "max" }
 verified = "2026-09-06"
 source = "https://docs.bigmodel.cn/cn/guide/models/"
 
@@ -38,7 +59,6 @@ display = "GLM-5.2"
 thinking = true
 max_context_tokens = 205000
 max_output_tokens = 128000
-thinking_style = "none"
 verified = "2026-09-05"
 source = "https://docs.bigmodel.cn/cn/guide/develop/http/usage"
 

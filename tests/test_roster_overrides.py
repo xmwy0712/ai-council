@@ -28,8 +28,8 @@ def _registry_cfg() -> Any:
                 },
                 {
                     "id": "b",
-                    "adapter": "anthropic_api",
-                    "model": "claude-sonnet-5",
+                    "adapter": "zhipu",
+                    "model": "glm-4.6",
                     "role": "participant",
                 },
                 {"id": "judge", "adapter": "fake", "model": "fake/judge", "role": "judge"},

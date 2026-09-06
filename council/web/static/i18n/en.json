@@ -115,5 +115,9 @@
   "keys.error.save": "Save failed",
   "keys.error.badname": "Names may only contain letters, digits and underscores, and cannot start with a digit.",
   "drift.note": "Config changed — continuing with the previous config.",
-  "footer": "Events go to the app data dir only; export downloads via the browser."
+  "footer": "Events go to the app data dir only; export downloads via the browser.",
+  "roster.level.none": "Thinking: off",
+  "roster.level.minimal": "Thinking: minimal",
+  "roster.level.xhigh": "Thinking: extra high",
+  "roster.level.max": "Thinking: max"
 }
