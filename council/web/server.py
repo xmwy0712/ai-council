@@ -30,7 +30,7 @@ from ..adapters import build_adapters
 from ..core import secrets
 from ..registry import cli_diagnostics
 from ..core.secrets import SecretError
-from ..core.config import Config
+from ..core.config import Config, NodeRole
 from ..core.contracts import Adapter
 from ..core.ids import new_session_id
 from ..core.paths import sessions_db
@@ -306,6 +306,34 @@ def create_app(
                             ),
                         )
                 node.thinking = override.thinking or None
+        # 用户只给部分节点选了真实模型（其余行的模型框留空 = 保持默认）时，
+        # 仍停留在 fake 演示档的节点不应参与本场讨论：它们的 0ms 模板假方案
+        # 会混入提案与「选主案」弹窗候选，看起来像多出了没选过的参与者。
+        # 规则：只要本场对任一参与者显式选了模型，就把「未被点名 + 仍是
+        # fake 演示适配器」的参与者禁用；真实模型默认行不受影响。
+        touched = {o.node_id for o in overrides}
+        picked_any = any(
+            o.model
+            for o in overrides
+            if (n := by_id.get(o.node_id)) is not None
+            and n.role is NodeRole.PARTICIPANT
+        )
+        if picked_any:
+            for node in effective.nodes:
+                if (
+                    node.role is NodeRole.PARTICIPANT
+                    and node.enabled
+                    and node.id not in touched
+                    and node.adapter == "fake"
+                ):
+                    node.enabled = False
+            live = [n for n in effective.nodes if n.role is NodeRole.PARTICIPANT and n.enabled]
+            if live:
+                # 只留 1~2 名讨论者时，quorum 与 active_nodes 随实际参与者收缩：
+                # 否则引擎会因低于 min_quorum 永远冻结等待，config 也会因
+                # 「active_nodes ≠ 参与者数量」在存储读回时校验失败。
+                effective.failure.min_quorum = min(effective.failure.min_quorum, len(live))
+                effective.council.active_nodes = len(live)
         # 运行参数调优：覆盖全局 idle_s / total_s / max_retries
         if tuning:
             if tuning.idle_s is not None:

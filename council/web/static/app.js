@@ -442,6 +442,21 @@ function initCursorTrail() {
     { color: "#c2c2cc", r: 3.0, orbitR: 82, theta: 5.5, omega: -0.35 },
   ].map((p) => ({ ...p, x: null, y: null, vx: 0, vy: 0 }));
 
+  // 恒星锚点限制在安全区内（边缘留出最大行星轨道 + 光晕余量）：
+  // 否则光标移到视口边缘时，行星公转到画布外被裁掉，贴边留下一竖条
+  // 被切开的彩色弧段（视觉上像鼠标在页面边缘留下了痕迹）。
+  const EDGE = 100; // 最大行星轨道 82 + 光晕/行星半径余量
+  const clampX = (v) => {
+    const w = canvas.clientWidth;
+    if (w <= EDGE * 2) return w / 2;
+    return Math.min(Math.max(v, EDGE), w - EDGE);
+  };
+  const clampY = (v) => {
+    const h = canvas.clientHeight;
+    if (h <= EDGE * 2) return h / 2;
+    return Math.min(Math.max(v, EDGE), h - EDGE);
+  };
+
   // 恒星与行星始终跟随光标
   window.addEventListener("pointermove", (event) => {
     const x = event.clientX;
@@ -449,8 +464,8 @@ function initCursorTrail() {
     if (cx === null) {
       cx = x;
       cy = y;
-      sx = x;
-      sy = y;
+      sx = clampX(x);
+      sy = clampY(y);
       for (const p of planets) {
         p.x = sx + Math.cos(p.theta) * p.orbitR;
         p.y = sy + Math.sin(p.theta) * p.orbitR;
@@ -480,6 +495,8 @@ function initCursorTrail() {
       // 恒星平滑跟随光标
       sx += (cx - sx) * 0.35;
       sy += (cy - sy) * 0.35;
+      sx = clampX(sx);
+      sy = clampY(sy);
 
       // 连续光拖尾：每帧记录恒星位置，形成不断渐隐的一条光线
       const now = performance.now();

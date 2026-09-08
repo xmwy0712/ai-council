@@ -531,7 +531,19 @@ class CouncilEngine:
         author = self.state.selected or ""
         nodes = [n for n in self._available_participants() if n.id != author]
         if not nodes:
-            raise PhaseBlocked(f"除作者 {author} 外没有可用评审者")
+            # 单参与者会话（用户在 roster 只选了一个模型）：除作者外没有第二人
+            # 可评审。记一笔空评审直接进入辩论/裁定，而不是抛 PhaseBlocked 把
+            # 会话冻在「等待恢复」——否则单模型讨论永远走不到终点。
+            await self._emit(
+                EventType.PHASE_COMPLETED,
+                PhaseCompleted(
+                    phase=Phase.REVIEW.value,
+                    round=round_,
+                    version=self.state.version,
+                    summary={"reviews": {}, "absentees": [], "skipped": "solo-author"},
+                ),
+            )
+            return
         results, absent, any_retryable = await self._gather(
             Phase.REVIEW, round_, nodes, self._review_messages, ReviewOut
         )

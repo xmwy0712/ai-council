@@ -11,7 +11,7 @@ schema_version = 1
 
 [council]
 max_nodes = 5          # 上限 5，硬约束
-active_nodes = 3        # 2..5，必须等于下方启用的参与者数量
+active_nodes = 3        # 1..5（建议 ≥2），必须等于下方启用的参与者数量
 max_rounds = 8          # P3–P6 循环上限
 debate_rounds = 2       # 每轮评审内的辩论轮数（0 = 跳过辩论）
 language = "zh-CN"      # 影响提示词模板与 UI 文案

@@ -46,7 +46,7 @@ __all__ = [
 ]
 
 SCHEMA_VERSION: Final[int] = 1
-MIN_NODES: Final[int] = 2
+MIN_NODES: Final[int] = 1
 MAX_NODES: Final[int] = 5
 
 _HEX_COLOR: Final = re.compile(r"^#[0-9a-fA-F]{6}$")
@@ -214,8 +214,8 @@ class Config(_Strict):
             raise ValueError(f"节点 id 重复：{', '.join(dupes)}")
 
         participants = self.participants
-        if not 2 <= len(participants) <= MAX_NODES:
-            raise ValueError(f"参与者节点数量必须为 2..{MAX_NODES}，当前为 {len(participants)}")
+        if not 1 <= len(participants) <= MAX_NODES:
+            raise ValueError(f"参与者节点数量必须为 1..{MAX_NODES}，当前为 {len(participants)}")
         if len(participants) > self.council.max_nodes:
             raise ValueError(
                 f"参与者数量 {len(participants)} 超过 council.max_nodes={self.council.max_nodes}"

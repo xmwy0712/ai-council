@@ -221,3 +221,88 @@ def test_cli_model_override_sets_cli_setting(tmp_path: Path) -> None:
         assert node_b.adapter == "cli_session"
         assert node_b.settings["cli"] == "agy"
         assert node_b.model == "agy:"
+
+
+def test_partial_picks_disable_unpicked_fake_nodes(tmp_path: Path) -> None:
+    """roster 只给部分节点选了真实模型：未被点名的 fake 演示节点应被禁用，
+    不再产出 0ms 假方案混入提案与「选主案」弹窗候选。"""
+    from council.core.config import parse_config
+
+    cfg = parse_config(
+        {
+            "council": {"active_nodes": 3},
+            "nodes": [
+                {"id": "n1", "adapter": "fake", "model": "fake/n1", "role": "participant"},
+                {"id": "n2", "adapter": "fake", "model": "fake/n2", "role": "participant"},
+                {"id": "n3", "adapter": "fake", "model": "fake/n3", "role": "participant"},
+                {"id": "judge", "adapter": "fake", "model": "fake/judge", "role": "judge"},
+            ],
+            "judge": {"enabled": True, "node_id": "judge", "auto_select": False},
+            "failure": {"min_quorum": 2, "circuit_cooldown_s": 0.01},
+        }
+    )
+    app = create_app(data_dir=tmp_path, config=cfg, adapter_builder=lambda c: make_adapters(c))
+    client = TestClient(app)
+    with client:
+        r = client.post(
+            "/api/sessions",
+            json={
+                "question": "部分选择测试",
+                "overrides": [{"node_id": "n1", "model": "deepseek-v4-flash"}],
+            },
+        )
+        assert r.status_code == 202, r.text
+        hub = app.state.manager.hub(r.json()["session_id"])
+        nodes = {n.id: n for n in hub._config.nodes}
+        # n1 被点名：切换到真实模型/厂商，保留
+        assert nodes["n1"].enabled is True
+        assert nodes["n1"].model == "deepseek-v4-flash"
+        assert nodes["n1"].adapter == "deepseek"
+        # n2/n3 未被点名且仍是 fake：禁用
+        assert nodes["n2"].enabled is False, "未选模型的 fake 节点应被禁用"
+        assert nodes["n3"].enabled is False, "未选模型的 fake 节点应被禁用"
+        # judge 永远保留
+        assert nodes["judge"].enabled is True
+
+
+def test_single_participant_session_still_completes(tmp_path: Path) -> None:
+    """只给一个节点选模型（其余 fake 全被禁用）时，会话不能卡在评审阶段，
+    单作者场景应跳过空评审直到收敛出终稿。"""
+    from council.core.config import parse_config
+
+    cfg = parse_config(
+        {
+            "council": {"active_nodes": 3, "debate_rounds": 0},
+            "nodes": [
+                {"id": "n1", "adapter": "fake", "model": "fake/n1", "role": "participant"},
+                {"id": "n2", "adapter": "fake", "model": "fake/n2", "role": "participant"},
+                {"id": "n3", "adapter": "fake", "model": "fake/n3", "role": "participant"},
+                {"id": "judge", "adapter": "fake", "model": "fake/judge", "role": "judge"},
+            ],
+            "judge": {"enabled": True, "node_id": "judge", "auto_select": False},
+            "failure": {"min_quorum": 1, "circuit_cooldown_s": 0.01},
+        }
+    )
+    app = create_app(data_dir=tmp_path, config=cfg, adapter_builder=lambda c: make_adapters(c))
+    client = TestClient(app)
+    with client:
+        r = client.post(
+            "/api/sessions",
+            json={
+                "question": "单模型讨论",
+                "overrides": [{"node_id": "n1", "model": "deepseek-v4-flash"}],
+            },
+        )
+        assert r.status_code == 202, r.text
+        session_id = r.json()["session_id"]
+        # 运行中的会话会弹人工选主案（auto_select=False + fake judge → 人工）；
+        # 用默认 answer 兜底让它跑完：轮询等待最终 completed。
+        import time as _time
+
+        for _ in range(100):
+            d = client.get(f"/api/sessions/{session_id}").json()
+            if d.get("status") in ("completed", "error", "stopped"):
+                break
+            _time.sleep(0.1)
+        assert d.get("status") == "completed", f"会话未完成：{d.get('status')} {d.get('error', '')}"
+        assert d.get("selected") == "n1"
