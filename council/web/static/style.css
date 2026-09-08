@@ -145,7 +145,14 @@ textarea:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
   border: 1px solid var(--border); border-radius: 8px;
   padding: 8px 12px; background: var(--bg-panel);
 }
-.session-row .q { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.session-row .q {
+  flex: 1;
+  min-width: 0;               /* flex 子项默认 min-width:auto 会被长内容撑开，
+                                 省略号因此失效；置 0 后 ellipsis 才真正生效 */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .session-row .when { color: var(--text-faint); font-size: 12px; white-space: nowrap; }
 
 /* --------------------------------------------------------------- statuses  */

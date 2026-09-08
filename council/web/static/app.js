@@ -1072,7 +1072,11 @@ async function refreshList() {
     data.sessions.forEach((row) => {
       const div = h("div", "session-row");
       const q = h("span", "q");
-      text(q, row.question || row.session_id);
+      // 历史列表严格限长：超长问题截到 ~32 字符并以 … 代替，
+      // 完整原文放进 title 悬停可见（配合 CSS ellipsis 双保险）。
+      const rawQ = row.question || row.session_id;
+      q.title = rawQ;
+      text(q, rawQ.length > 32 ? rawQ.slice(0, 32) + "…" : rawQ);
       const chip = h("span", "status " + (row.status || ""));
       text(chip, dStatus(row.status || "running"));
       const when = h("span", "when");
