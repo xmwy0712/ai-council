@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+import pytest
 from conftest import make_adapters
 from fastapi.testclient import TestClient
 
@@ -128,3 +129,95 @@ def test_overrides_reject_unknown_inputs(tmp_path: Path) -> None:
             },
         )
         assert r.status_code == 422
+
+
+def test_model_override_switches_node_adapter(tmp_path: Path) -> None:
+    """在 fake 演示节点上选择真实模型：适配器必须一并切换到该厂商——
+    否则 fake 适配器拿着真实模型名继续本地演戏，密钥与思考永不生效。"""
+    import os
+
+    from council.adapters.openai_api import OpenAIAdapter
+
+    os.environ.setdefault("DEEPSEEK_API_KEY", "sk-test")
+    os.environ.setdefault("MOONSHOT_API_KEY", "sk-test")
+    client, app = _client(tmp_path)
+    with client:
+        manager = app.state.manager
+        response = client.post(
+            "/api/sessions",
+            json={
+                "question": "适配器联动测试",
+                "overrides": [
+                    {"node_id": "a", "model": "deepseek-v4-flash", "thinking": "low"},
+                    {"node_id": "b", "model": "kimi-k3", "thinking": "max"},
+                ],
+            },
+        )
+        assert response.status_code == 202, response.text
+        hub = manager.hub(response.json()["session_id"])
+        node_a = next(n for n in hub._config.nodes if n.id == "a")
+        node_b = next(n for n in hub._config.nodes if n.id == "b")
+        # 配置层：适配器跟随模型所属厂商
+        assert node_a.adapter == "deepseek"
+        assert node_a.thinking == "low"
+        assert node_b.adapter == "moonshot"
+        assert node_b.thinking == "max"
+        # 适配器实例层：deepseek 节点解析为 OpenAI 兼容适配器且指向官方端点
+        from council.adapters import build_adapters
+
+        adapters = build_adapters(hub._config)
+        deepseek = adapters["a"]
+        assert isinstance(deepseek, OpenAIAdapter)
+        assert "deepseek" in deepseek._base_url
+
+
+def test_missing_key_surfaces_as_409(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """阵容切到真实厂商但缺密钥：返回 409 并指明缺哪把钥匙，而非 500。"""
+    monkeypatch.delenv("ZHIPU_API_KEY", raising=False)
+    monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)
+    # 系统钥匙串里可能存有真实密钥：屏蔽 resolve，模拟「完全未配置」
+    monkeypatch.setattr("council.core.secrets.resolve", lambda name, **kwargs: None)
+    # 系统钥匙串里可能存有真实密钥：屏蔽 resolve，模拟「完全未配置」
+    monkeypatch.setattr("council.core.secrets.resolve", lambda name, **kwargs: None)
+    # 真实适配器构建器才会触发密钥检查（fake 构建器永远不缺密钥）
+    from council.adapters import build_adapters
+
+    app = create_app(
+        data_dir=tmp_path,
+        config=_registry_cfg(),
+        adapter_builder=build_adapters,
+    )
+    client = TestClient(app)
+    with client:
+        r = client.post(
+            "/api/sessions",
+            json={
+                "question": "缺密钥测试",
+                "overrides": [{"node_id": "a", "model": "glm-5.3-flash", "thinking": "low"}],
+            },
+        )
+        assert r.status_code == 409, r.text
+        assert "ZHIPU_API_KEY" in r.json()["detail"]
+
+
+def test_cli_model_override_sets_cli_setting(tmp_path: Path) -> None:
+    """选 cli_session 模型（agy/codex/claude）：适配器与 settings.cli 一并设置。"""
+    import os
+
+    os.environ.setdefault("MOONSHOT_API_KEY", "sk-test")
+    client, app = _client(tmp_path)
+    with client:
+        manager = app.state.manager
+        response = client.post(
+            "/api/sessions",
+            json={
+                "question": "CLI 适配器测试",
+                "overrides": [{"node_id": "b", "model": "agy:"}],
+            },
+        )
+        assert response.status_code == 202, response.text
+        hub = manager.hub(response.json()["session_id"])
+        node_b = next(n for n in hub._config.nodes if n.id == "b")
+        assert node_b.adapter == "cli_session"
+        assert node_b.settings["cli"] == "agy"
+        assert node_b.model == "agy:"

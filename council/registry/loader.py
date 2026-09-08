@@ -38,6 +38,7 @@ _KNOWN_THINKING_STYLES: Final = frozenset(
     {"enum_effort", "budget_tokens", "thinking_budget", "thinking_level", "none"}
 )
 
+
 # 伴生字段：某些厂商的思考开关需要同时发送一个固定伙伴参数
 # （例如阿里 DashScope 的 enable_thinking），它们不属于「档位→值」的映射，
 # 因此单独挂在 ThinkingSpec.extra 上随请求一起发出。
@@ -82,6 +83,8 @@ class ModelSpec:
     profile: str = ""  # cli_session profile (codex / claude / agy)
     verified: str = ""
     source: str = ""
+    # 推理模型（GPT-5.6/6 等）不接受 temperature 参数
+    omit_temperature: bool = False
 
 
 @dataclass(frozen=True)
@@ -95,6 +98,9 @@ class ProviderSpec:
     models: MappingProxyType[str, ModelSpec] = field(default_factory=lambda: MappingProxyType({}))
     # 本地/自建端点（Ollama、vLLM 等）不需要密钥
     secret_required: bool = True
+    # 部分思考模型（如 Moonshot K 系）固定 temperature=1.0，
+    # 传其他值直接 400 —— 声明后适配器省略 temperature
+    omit_temperature: bool = False
     # 声明「本厂商用哪个适配器协议实现」——加上它，
     # 新增一家 OpenAI 兼容厂商就只需一份 TOML，零 Python 代码。
     adapter: str = ""
@@ -160,6 +166,7 @@ def _model_from(raw: dict[str, Any], provider: str) -> ModelSpec:
         profile=str(raw.get("profile", "")),
         verified=str(raw.get("verified", "")),
         source=str(raw.get("source", "")),
+        omit_temperature=bool(raw.get("omit_temperature", False)),
     )
 
 
@@ -184,6 +191,7 @@ def _provider_from(raw: dict[str, Any], *, origin: str) -> ProviderSpec:
         thinking=thinking,
         models=MappingProxyType(models),
         secret_required=bool(meta.get("secret_required", True)),
+        omit_temperature=bool(meta.get("omit_temperature", False)),
         adapter=str(meta.get("adapter", "")),
     )
 

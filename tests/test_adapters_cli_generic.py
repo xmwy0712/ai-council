@@ -62,7 +62,10 @@ def test_claude_argv_disables_write_and_network_tools() -> None:
 
 def test_agy_argv_uses_plan_mode() -> None:
     argv = CLI_PROFILES["agy"].argv("问题", "Gemini 3.5 Flash (High)", "/tmp/work")
-    assert argv[argv.index("--mode") + 1] == "plan"
+    # --mode plan 已移除：会让 agy 走计划流不产出最终回复；新参数 --add-dir + --print-timeout 替代
+    assert "--add-dir" in argv
+    assert argv[argv.index("--add-dir") + 1] == "/tmp/work"
+    assert argv[argv.index("--print-timeout") + 1] == "180s"
     assert argv[argv.index("--model") + 1] == "Gemini 3.5 Flash (High)"
 
 

@@ -165,8 +165,14 @@ class ConsoleHandler:
         typer.secho(f"\n请选择主案（{req.reason}）", fg=typer.colors.CYAN)
         for candidate in req.candidates:
             typer.echo(f"  - {candidate}")
-        raw = await asyncio.to_thread(input, "输入节点 id: ")
-        return raw.strip()
+        try:
+            raw = await asyncio.to_thread(input, "输入节点 id: ")
+        except EOFError:
+            # 非交互运行（管道 / CI）：无 stdin 可读，保守取首个候选
+            typer.secho("（无交互输入，自动采用首个候选）", fg=typer.colors.YELLOW)
+            return req.candidates[0] if req.candidates else ""
+        raw = raw.strip()
+        return raw if raw in req.candidates else (req.candidates[0] if req.candidates else "")
 
     async def on_decision(self, req: DecisionRequest) -> str:
         typer.secho(f"\n需要你的决定（{req.phase}）：{req.question}", fg=typer.colors.CYAN)

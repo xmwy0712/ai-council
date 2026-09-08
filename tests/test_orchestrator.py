@@ -222,7 +222,12 @@ async def test_need_user_decision_asks_the_handler(tmp_path) -> None:
         return default_reply(req)
 
     handler = RecordingHandler(on_decision_answer="预算上限设为 30 万")
-    harness = await make_engine(tmp_path, responders={"judge": blocking}, handler=handler)
+    config = cfg(participants=3)
+    # fake Judge 现在直接转人工选主案；要测 P5 裁定询问需给 Judge 真实适配器
+    config.judge_node.adapter = "openai_api"
+    harness = await make_engine(
+        tmp_path, config=config, responders={"judge": blocking}, handler=handler
+    )
     state = await harness.engine.run("s1", "问题")
 
     assert handler.decisions

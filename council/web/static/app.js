@@ -188,6 +188,27 @@ function loadOverrides() {
 }
 let OVERRIDES = loadOverrides();
 
+const TUNING_KEY = "council:tuning";
+
+function loadTuning() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(TUNING_KEY) || "{}");
+    return raw && typeof raw === "object" ? raw : {};
+  } catch (_) { return {}; }
+}
+let TUNING = loadTuning();
+
+function saveTuning() {
+  try { localStorage.setItem(TUNING_KEY, JSON.stringify(TUNING)); } catch (_) { /* private mode */ }
+}
+
+function collectTuning() {
+  const out = {};
+  if (TUNING.idle_s > 0) out.idle_s = TUNING.idle_s;
+  if (TUNING.max_retries >= 0) out.max_retries = TUNING.max_retries;
+  return Object.keys(out).length ? out : null;
+}
+
 function saveOverrides() {
   try { localStorage.setItem(OVERRIDES_KEY, JSON.stringify(OVERRIDES)); } catch (_) { /* private mode */ }
 }
@@ -722,12 +743,55 @@ function describeEvent(event) {
   }
 }
 
+// 流式状态行：CallChunk 每秒可达数十条，逐条追加只会刷屏——
+// 同一调用只保留一行实时状态，CallCompleted 时移除
+const streamLines = new Map();
+const streamCounts = new Map();
+
+function updateStreamLine(event) {
+  const key = event.payload.key || "stream";
+  let li = streamLines.get(key);
+  if (!li) {
+    li = h("li");
+    const seqNode = h("span", "t-seq");
+    const kind = h("span", "t-kind streaming");
+    const body = h("span", "t-body stream-text");
+    li.appendChild(seqNode);
+    li.appendChild(kind);
+    kind.textContent = "⏳ 流式接收中";
+    li.appendChild(body);
+    const list = $("timeline");
+    const atBottom = list.scrollHeight - list.scrollTop - list.clientHeight < 60;
+    list.appendChild(li);
+    if (atBottom) list.scrollTop = list.scrollHeight;
+    streamLines.set(key, li);
+    streamCounts.set(key, 0);
+  }
+  streamCounts.set(key, (streamCounts.get(key) || 0) + 1);
+  const n = streamCounts.get(key);
+  if (n % 5 === 1) {
+    const body = li.querySelector(".stream-text");
+    if (body) text(body, `${key} · 已接收 ${n} 段`);
+  }
+}
+
+function clearStreamLine(key) {
+  const li = streamLines.get(key);
+  if (li) { li.remove(); streamLines.delete(key); streamCounts.delete(key); }
+}
+
 function appendEvent(event) {
   const seq = Number(event.seq) || 0;
   if (seq > 0) {
     if (seenSeqs.has(seq)) return false; // replay vs live duplicate
     seenSeqs.add(seq);
   }
+  if (event.type === "CallChunk") {
+    updateStreamLine(event);
+    return true;
+  }
+  if (event.type === "CallCompleted") clearStreamLine(event.payload.key);
+  if (event.type === "CallFailed") clearStreamLine(event.payload.key);
   const list = $("timeline");
   const atBottom = list.scrollHeight - list.scrollTop - list.clientHeight < 60;
   const li = h("li");
@@ -758,6 +822,8 @@ function appendEvent(event) {
 function connectWS(sessionId) {
   SESSION_ID = sessionId;
   seenSeqs = new Set();
+  streamLines.clear();
+  streamCounts.clear();
   const scheme = location.protocol === "https:" ? "wss" : "ws";
   WS = new WebSocket(`${scheme}://${location.host}/api/sessions/${sessionId}/ws`);
   WS.onopen = () => WS.send(JSON.stringify({ kind: "hello", since: 0 }));
@@ -845,7 +911,8 @@ function renderAskButtons(ask) {
   }
 
   if (ask.type === "failure") {
-    const map = { retry: "act.retry", wait: "act.wait", switch_model: "act.switch_model", switch_adapter: "act.switch_adapter", drop_node: "act.drop_node", abort: "act.abort" };
+    // 暂停/恢复按钮已覆盖「等待」语义；这里不再提供以免与会话级暂停混淆
+    const map = { retry: "act.retry", switch_model: "act.switch_model", switch_adapter: "act.switch_adapter", drop_node: "act.drop_node", abort: "act.abort" };
     (ask.ask.available || []).forEach((value) => {
       const button = h("button");
       text(button, t(map[value] || value));
@@ -888,6 +955,16 @@ function renderAskButtons(ask) {
     closeAsk();
   });
   cancel.addEventListener("click", closeAsk);
+  // 选主案：必须选一个候选——30 分钟后自动兜底取首个；不再提供「保持等待」按钮
+  // 失败弹窗：动作按钮里已有「终止会议」，取消按钮冗余——一并隐藏
+  if (ask.type === "select" || ask.type === "failure") {
+    cancel.classList.add("hidden");
+    // 选主案需要阅读各候选方案：弹窗浮动左下角、去掉全屏遮罩
+    if (ask.type === "select") {
+      const overlay = $("ask-overlay");
+      overlay.classList.add("ask-select-mode");
+    }
+  }
 
   box.appendChild(options);
   box.appendChild(inputs);
@@ -911,6 +988,7 @@ function showAsk(ask) {
 }
 
 function closeAsk() {
+  $("ask-overlay").classList.remove("ask-select-mode");
   activeAsk = null;
   $("ask-overlay").classList.add("hidden");
 }
@@ -1031,7 +1109,7 @@ async function submitNewSession(event) {
     }
     const created = await api("/api/sessions", {
       method: "POST",
-      body: JSON.stringify({ question, files, overrides: collectOverrides() }),
+      body: JSON.stringify({ question, files, overrides: collectOverrides(), tuning: collectTuning() }),
     });
     $("question").value = "";
     $("files").value = "";
@@ -1192,6 +1270,66 @@ async function addCustomKey() {
   }
 }
 
+/* ------------------------------------------------------------ CLI diagnostics */
+
+function renderDiagnostics(items) {
+  const host = $("diag-list");
+  if (!host) return;
+  if (!items || !items.length) {
+    text(host, "");
+    return;
+  }
+  host.replaceChildren();
+  for (const it of items) {
+    const row = h("div", "diag-row");
+    const name = h("span", "diag-name");
+    text(name, it.name);
+    row.appendChild(name);
+    if (!it.installed) {
+      const tag = h("span", "diag-tag bad");
+      text(tag, t("diag.missing"));
+      row.appendChild(tag);
+    } else {
+      const tag = h("span", "diag-tag good");
+      text(tag, `${t("diag.installed")}${it.version ? " · " + it.version : ""}`);
+      row.appendChild(tag);
+      if (it.authenticated === true) {
+        const a = h("span", "diag-tag good");
+        text(a, t("diag.authed"));
+        row.appendChild(a);
+      } else if (it.authenticated === false) {
+        const a = h("span", "diag-tag bad");
+        text(a, t("diag.unauth") + (it.auth_detail ? " · " + it.auth_detail : ""));
+        row.appendChild(a);
+      } else if (it.authenticated === null && it.auth_detail) {
+        const a = h("span", "diag-tag warn");
+        text(a, t("diag.auth_unknown") + " · " + it.auth_detail);
+        row.appendChild(a);
+      }
+      if (it.error) {
+        const e = h("div", "diag-error");
+        text(e, it.error);
+        row.appendChild(e);
+      }
+    }
+    host.appendChild(row);
+  }
+}
+
+async function runDiagnostics() {
+  const btn = $("btn-diagnostics");
+  btn.disabled = true;
+  try {
+    const data = await api("/api/diagnostics");
+    renderDiagnostics(data.clis || []);
+  } catch (err) {
+    const host = $("diag-list");
+    text(host, err.message);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
 /* ------------------------------------------------------------------- boot */
 
 function switchLang(lang) {
@@ -1209,6 +1347,29 @@ function switchLang(lang) {
     renderRoster();
     renderRosterEditor();
     renderConfigWarnings();
+  });
+}
+
+function renderTuningInputs() {
+  const idle = $("tune-idle");
+  const retries = $("tune-retries");
+  if (!idle || !retries) return;
+  idle.value = TUNING.idle_s > 0 ? TUNING.idle_s : 90;
+  retries.value = TUNING.max_retries >= 0 ? TUNING.max_retries : 3;
+}
+
+function bindTuningInputs() {
+  const idle = $("tune-idle");
+  const retries = $("tune-retries");
+  if (idle) idle.addEventListener("change", () => {
+    TUNING.idle_s = Math.max(10, Math.min(3600, Number(idle.value) || 90));
+    idle.value = TUNING.idle_s;
+    saveTuning();
+  });
+  if (retries) retries.addEventListener("change", () => {
+    TUNING.max_retries = Math.max(0, Math.min(10, Number(retries.value) || 3));
+    retries.value = TUNING.max_retries;
+    saveTuning();
   });
 }
 
@@ -1246,6 +1407,8 @@ function bindBoot() {
     if (event.key === "Enter") addCustomKey();
   });
 
+  $("btn-diagnostics").addEventListener("click", runDiagnostics);
+
   bindActions();
 }
 
@@ -1254,6 +1417,8 @@ async function boot() {
   bindBoot();
   bindHelpTips();
   applyFxSetting();
+  bindTuningInputs();
+  renderTuningInputs();
   await loadLocale(LANG);
   await fetchThemes();
   // Re-apply the persisted theme label once builtins are loaded.

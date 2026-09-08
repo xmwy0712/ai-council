@@ -1,6 +1,7 @@
 # OpenAI 及任意 OpenAI 兼容端点。
 # 参数名与取值范围见 docs/PROVIDERS.md（核实 2026-09-06）。
-# GPT-6 / GPT-5.6 世代在役；gpt-5.2-chat-latest 已关闭下线。
+# GPT-6 家族（2026-09-03 发布）仅 gpt-6-astra 一个成员；5.6 世代在役。
+# 核实补充：二手价格页仍列 gpt-5.2-chat-latest，官方未证实，继续不收录。
 
 [provider]
 id = "openai_api"
@@ -26,12 +27,13 @@ thinking_style = "enum_effort"
 param = "reasoning_effort"
 levels = { low = "low", medium = "medium", high = "high", xhigh = "xhigh", max = "max" }
 thinking = true
+omit_temperature = true
 structured_output = true
 streaming = true
-max_context_tokens = 400000
+max_context_tokens = 1050000
 max_output_tokens = 128000
 verified = "2026-09-06"
-source = "https://developers.openai.com/api/reference/resources/chat/subresources/completions/methods/create"
+source = "https://openai.com/index/gpt-6-astra/"
 
 [[models]]
 id = "gpt-5.6-sol"
@@ -40,6 +42,7 @@ param = "reasoning_effort"
 levels = { none = "none", low = "low", medium = "medium", high = "high", xhigh = "xhigh" }
 display = "GPT-5.6 Sol"
 thinking = true
+omit_temperature = true
 structured_output = true
 streaming = true
 max_context_tokens = 400000
@@ -54,6 +57,7 @@ param = "reasoning_effort"
 levels = { none = "none", low = "low", medium = "medium", high = "high", xhigh = "xhigh" }
 display = "GPT-5.6 Terra"
 thinking = true
+omit_temperature = true
 structured_output = true
 streaming = true
 max_context_tokens = 400000
@@ -63,6 +67,7 @@ source = "https://developers.openai.com/api/reference/resources/chat/subresource
 
 [[models]]
 id = "gpt-5.6-luna"
+omit_temperature = true
 thinking_style = "enum_effort"
 param = "reasoning_effort"
 levels = { none = "none", low = "low", medium = "medium", high = "high", xhigh = "xhigh" }
@@ -79,6 +84,7 @@ source = "https://developers.openai.com/api/reference/resources/chat/subresource
 id = "gpt-5.3-codex"
 display = "GPT-5.3 Codex"
 thinking = true
+omit_temperature = true
 structured_output = true
 streaming = true
 max_context_tokens = 400000

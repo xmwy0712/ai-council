@@ -28,6 +28,8 @@ from pydantic import BaseModel, Field
 from .. import __version__
 from ..adapters import build_adapters
 from ..core import secrets
+from ..registry import cli_diagnostics
+from ..core.secrets import SecretError
 from ..core.config import Config
 from ..core.contracts import Adapter
 from ..core.ids import new_session_id
@@ -80,10 +82,19 @@ class _NodeOverride(BaseModel):
     thinking: str | None = Field(default=None, max_length=32)
 
 
+class _RunTuning(BaseModel):
+    """运行参数调优：卡死判定超时与重试次数，随会话提交并写入 effective config。"""
+
+    idle_s: float | None = Field(default=None, gt=0, le=3600)
+    total_s: float | None = Field(default=None, gt=0, le=7200)
+    max_retries: int | None = Field(default=None, ge=0, le=10)
+
+
 class _NewSession(BaseModel):
     question: str = Field(min_length=0, max_length=20000)
     files: list[_UploadFile] = Field(default_factory=list)
     overrides: list[_NodeOverride] = Field(default_factory=list)
+    tuning: _RunTuning | None = None
 
 
 class _ActionBody(BaseModel):
@@ -197,6 +208,11 @@ def create_app(
             "warnings": cfg.warnings(),
         }
 
+    @app.get("/api/diagnostics")
+    async def diagnostics() -> dict[str, list[dict[str, str | bool | None]]]:
+        """三大本地 CLI（codex / claude / agy）的环境检查：安装、版本、鉴权。"""
+        return {"clis": await cli_diagnostics.check_all()}
+
     @app.get("/api/models")
     async def models_catalog() -> dict[str, Any]:
         """注册表目录：按厂商分组，供网页端阵容编辑器的下拉框使用。"""
@@ -228,7 +244,9 @@ def create_app(
 
     # ------------------------------------------------------- roster overrides
 
-    def _apply_overrides(cfg: Config, overrides: list[_NodeOverride]) -> Config:
+    def _apply_overrides(
+        cfg: Config, overrides: list[_NodeOverride], *, tuning: _RunTuning | None = None
+    ) -> Config:
         """把会话级阵容覆盖应用到一个深拷贝上；任何未知输入都拒绝（422）。
 
         全局配置永远不被污染；续跑时从会话 meta 里读回同一份覆盖后的配置。
@@ -251,6 +269,24 @@ def create_app(
                         detail=f"模型 {override.model!r} 不在注册表中",
                     )
                 node.model = override.model
+                # 关键：连适配器一起切换到该模型所属厂商——否则演示用
+                # fake 节点选了真实模型后仍在本地演戏（0ms 假回复），
+                # 用户的 API 密钥与思考参数永远不生效。
+                # cli_session 模型：切到 cli_session 适配器并把 settings.cli
+                # 设为模型 id 前缀（agy / codex / claude）。
+                owner = next(
+                    (
+                        pid
+                        for pid, provider in registry.providers.items()
+                        if model.id in provider.models
+                    ),
+                    None,
+                )
+                if owner == "cli_session":
+                    node.adapter = "cli_session"
+                    node.settings["cli"] = model.id.split(":", 1)[0]
+                elif owner:
+                    node.adapter = owner
             if override.thinking is not None:
                 if override.thinking:
                     model = registry.model(node.model)
@@ -270,6 +306,14 @@ def create_app(
                             ),
                         )
                 node.thinking = override.thinking or None
+        # 运行参数调优：覆盖全局 idle_s / total_s / max_retries
+        if tuning:
+            if tuning.idle_s is not None:
+                effective.timeout.idle_s = tuning.idle_s
+            if tuning.total_s is not None:
+                effective.timeout.total_s = tuning.total_s
+            if tuning.max_retries is not None:
+                effective.failure.max_retries = tuning.max_retries
         return effective
 
     # --------------------------------------------------------------- sessions
@@ -279,12 +323,15 @@ def create_app(
         manager = _manager(request)
         session_id = new_session_id()
         uploads = [(f.name, f.content) for f in body.files]
-        effective = _apply_overrides(manager.config, body.overrides)
+        effective = _apply_overrides(manager.config, body.overrides, tuning=body.tuning)
         try:
             await manager.start_new(session_id, body.question, uploads, config=effective)
         except UploadRejected as err:
             raise HTTPException(status_code=400, detail=str(err)) from None
         except HubError as err:
+            raise HTTPException(status_code=409, detail=str(err)) from None
+        except SecretError as err:
+            # 阵容切到真实厂商后缺少对应密钥：明确告诉用户缺哪把钥匙
             raise HTTPException(status_code=409, detail=str(err)) from None
         return {"session_id": session_id}
 

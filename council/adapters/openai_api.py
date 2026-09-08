@@ -62,6 +62,9 @@ class OpenAIAdapter:
         self._model = registry.model(node.model)
         self._client = client
         self._owns_client = client is None
+        self._omit_temperature = (self._model.omit_temperature if self._model else False) or (
+            bool(provider.omit_temperature) if provider else False
+        )
         self._thinking_translation = (
             registry.translate_thinking(node.adapter, node.model, node.thinking or "")
             if node.thinking
@@ -122,14 +125,22 @@ class OpenAIAdapter:
             "messages": [
                 {"role": message.role.value, "content": message.content} for message in req.messages
             ],
-            "temperature": req.temperature,
             "stream": True,
             "stream_options": {"include_usage": True},
         }
+        if not self._omit_temperature:
+            payload["temperature"] = req.temperature
         if req.max_output_tokens is not None:
             payload["max_completion_tokens"] = req.max_output_tokens
         if req.response_format is ResponseFormat.JSON:
             payload["response_format"] = {"type": "json_object"}
+            # DeepSeek 要求 prompt 包含 "json" 才允许 json_object 模式
+            if self._node.adapter == "deepseek":
+                last_user = next(
+                    (m for m in reversed(payload["messages"]) if m["role"] == "user"), None
+                )
+                if last_user and "json" not in last_user["content"].lower():
+                    last_user["content"] += "\n（请以 JSON 格式输出）"
         if self._thinking_translation is not None and req.thinking:
             payload[self._thinking_translation.param] = self._thinking_translation.value
             # 伴生字段（如 DashScope 的 enable_thinking）一并发出

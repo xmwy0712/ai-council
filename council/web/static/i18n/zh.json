@@ -1,6 +1,5 @@
 {
   "app.title": "AI Council 多模型会谈",
-  "brand.tag": "多模型会谈",
   "nav.new": "新会谈",
   "nav.back": "返回列表",
   "settings.open": "设置",
@@ -119,5 +118,18 @@
   "roster.level.none": "思考：关闭",
   "roster.level.minimal": "思考：极简",
   "roster.level.xhigh": "思考：极高",
-  "roster.level.max": "思考：最高"
+  "roster.level.max": "思考：最高",
+  "diag.title": "本地 CLI 环境",
+  "diag.run": "检查环境",
+  "diag.installed": "已安装",
+  "diag.missing": "未找到（需 npm/pip 安装并加入 PATH）",
+  "diag.authed": "已登录",
+  "diag.unauth": "未登录",
+  "diag.auth_unknown": "未知",
+  "diag.check_failed": "调用失败",
+  "diag.see_detail": "查看详情",
+  "tune.title": "运行参数",
+  "tune.idle": "卡死判定超时（秒）",
+  "tune.retries": "卡死后重试次数",
+  "tune.hint": "每次开会谈时自动应用；调整后立即保存到本地。"
 }

@@ -94,7 +94,21 @@ class _ClaudeProfile(CliProfile):
 
 class _AgyProfile(CliProfile):
     def argv(self, prompt: str, model: str | None, cwd: str) -> list[str]:
-        args = ["-p", prompt, "--output-format", "json", "--mode", "plan"]
+        # 参考官方 headless 文档：-p 进打印模式 + --output-format json
+        # 让 agy 一次性产出可被脚本解析的 JSON 信封（含 conversation_id / response / usage）。
+        # 关键：不要再加 --mode plan（那会让 agy 走计划流、不产出最终答案，导致空回），
+        # 加 --add-dir 把当前工作目录作为 workspace（print 模式对路径工具友好），
+        # --print-timeout 拉长避免长任务被 5 分钟默认超时截断。
+        args = [
+            "-p",
+            prompt,
+            "--output-format",
+            "json",
+            "--add-dir",
+            cwd,
+            "--print-timeout",
+            "180s",
+        ]
         if model:
             args += ["--model", model]
         return args

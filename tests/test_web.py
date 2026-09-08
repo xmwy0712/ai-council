@@ -11,11 +11,19 @@ import time
 from pathlib import Path
 from typing import Any
 
+import pytest
 from conftest import cfg, make_adapters
 from fastapi.testclient import TestClient
 
 from council.core.errors import CouncilError, ErrorKind
+from council.web import sessionhub as _sessionhub_module
 from council.web.server import create_app
+
+
+@pytest.fixture(autouse=True)
+def _fast_select_timeout(monkeypatch: pytest.MonkeyPatch) -> None:
+    """fake Judge 转人工选主案：测试里 1 秒兜底自动取首个候选，避免挂等。"""
+    monkeypatch.setattr(_sessionhub_module, "_SELECT_TIMEOUT_S", 1.0)
 
 
 def _client(tmp_path: Path, config: Any = None, **kwargs: Any) -> TestClient:

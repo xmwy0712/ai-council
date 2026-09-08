@@ -5,6 +5,32 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.2.0] - 2026-09-08
+
+第八个里程碑：方正字体排版、CLI 诊断中心、推理模型 temperature 适配与交互打磨。
+
+### Added
+
+- **方正字体排版系统**：全站改用方正仿宋（正文）+ 方正大标宋（标题）@font-face 自托管字体，主模块加宽至 1360px，字号/行高重排。
+- **CLI 诊断中心**：`GET /api/diagnostics` + 设置面板诊断区——codex / claude / agy 三大本地 CLI 的安装、版本、鉴权状态一键检查；无 auth 子命令的工具直接提示用户在终端 `agy login`，不再猜测。
+- **运行参数面板**：设置面板新增「运行参数」——卡死判定超时与重试次数可自定义，随会话提交写入 effective config。
+- **推理模型 temperature 适配**：注册表 `omit_temperature` 声明（模型级优先于厂商级）——GPT-5.6/6 系与 Moonshot K 系思考模型不接受自定义 temperature（传值 400），适配器按声明省略该参数。
+- **DeepSeek json_object 兜底**：JSON 模式要求 prompt 含 "json"，自动追加中文提示行避免触发 400。
+- **会话级 overrides 修复**：选择真实模型时节点适配器一并切换到所属厂商（修复 fake 演示节点拿真实模型名演戏——密钥与思考永不生效的假象）；cli_session 模型选中也联动 settings.cli。
+
+### Changed
+
+- **agy headless 调参**：去掉 `--mode plan`（计划流不产出最终答案导致空回），改 `--add-dir cwd` + `--print-timeout 180s`；`--print-timeout` 必须带单位。
+- **失败处理**：失败弹窗过滤 wait 按钮、隐藏取消按钮；选主案弹窗浮动左下角不再遮挡方案；CLI 非交互（管道/CI）遇 EOF 自动取首个候选，Web 端 30min 无值守自动取首个候选（fake Judge 视同未配置转人工审核）。
+- **移除「等待」按钮**（与会话暂停重复、易误操作卡住）；CallChunk 改单行流式状态不再刷屏。
+- **密钥缺失 409 明确提示**：指明缺失的密钥变量（而非 500）。
+- **模型注册表修正**：gpt-6-astra 上下文 1050000；Kimi K 系文档链接更新；注释澄清 gpt-5.2-chat-latest 未官方证实不收录。
+- 项目版本升至 `1.2.0`。
+
+### Fixed
+
+- 徽标只保留文字（去掉图形）；只读思考框显示空白；UI 细节打磨。
+
 ## [1.1.1] - 2026-09-06
 
 补丁版：思考档位全面注册表驱动（Claude 5 自适应思考、Kimi/Spark 档位核实）、光效与交互打磨。

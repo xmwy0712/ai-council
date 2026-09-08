@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="light">
   <title>AI Council</title>
-  <link rel="stylesheet" href="style.css?v=1.1.1.0">
+  <link rel="stylesheet" href="style.css?v=1.2.0.0">
   <script>
     // Apply the persisted theme before first paint to avoid flashing.
     // Colors are set as inline CSS variables; mode/id attributes let the
@@ -40,24 +40,7 @@
 
   <header class="topbar">
     <div class="brand">
-      <span class="brand-mark" aria-hidden="true">
-        <svg viewBox="0 0 28 28" fill="none">
-          <rect width="28" height="28" rx="8.5" fill="url(#brandgrad)"/>
-          <circle cx="14" cy="14" r="2.35" fill="#fff"/>
-          <circle cx="14" cy="6.6" r="1.6" fill="#fff" opacity=".92"/>
-          <circle cx="14" cy="21.4" r="1.6" fill="#fff" opacity=".92"/>
-          <circle cx="6.6" cy="14" r="1.6" fill="#fff" opacity=".92"/>
-          <circle cx="21.4" cy="14" r="1.6" fill="#fff" opacity=".92"/>
-          <circle cx="14" cy="14" r="9.2" stroke="#fff" stroke-opacity=".28" stroke-width="1"/>
-          <defs>
-            <linearGradient id="brandgrad" x1="0" y1="0" x2="28" y2="28" gradientUnits="userSpaceOnUse">
-              <stop stop-color="#5a7dff"/>
-              <stop offset="1" stop-color="#8b5cf6"/>
-            </linearGradient>
-          </defs>
-        </svg>
-      </span>
-      <span class="brand-text">AI Council <span class="brand-dot">•</span> <span data-i18n="brand.tag"></span></span>
+      <span class="brand-text">AI Council</span>
     </div>
     <nav class="top-actions">
       <button id="btn-home" class="chip" type="button" data-i18n="nav.new"></button>
@@ -170,6 +153,23 @@
       </section>
 
       <section class="settings-section">
+        <h4 data-i18n="tune.title"></h4>
+        <div class="tune-grid">
+          <label class="tune-item"><span data-i18n="tune.idle"></span><input id="tune-idle" type="number" min="10" max="3600" value="90"></label>
+          <label class="tune-item"><span data-i18n="tune.retries"></span><input id="tune-retries" type="number" min="0" max="10" value="3"></label>
+        </div>
+        <p class="hint" data-i18n="tune.hint"></p>
+      </section>
+
+      <section class="settings-section">
+        <h4 data-i18n="diag.title"></h4>
+        <div class="settings-row">
+          <button id="btn-diagnostics" class="chip" type="button" data-i18n="diag.run"></button>
+        </div>
+        <div id="diag-list" class="diag-list"></div>
+      </section>
+
+      <section class="settings-section">
         <h4 data-i18n="settings.lang"></h4>
         <div class="settings-row">
           <select id="lang-select" class="chip">
@@ -194,6 +194,6 @@
   </div>
 
   <footer><span data-i18n="footer"></span></footer>
-  <script src="app.js?v=1.1.1.0"></script>
+  <script src="app.js?v=1.2.0.0"></script>
 </body>
 </html>

@@ -446,16 +446,31 @@ class CouncilEngine:
         await self._ensure_quorum()
         judge = self.config.judge_node
         auto = self.config.judge is not None and self.config.judge.auto_select
-        if judge is not None and auto:
+        # fake 是零密钥演示适配器：让本地模板假评审替用户定主案没有意义，
+        # 视同「未配置 Judge」——按文档承诺转人工审核。
+        # fake 是零密钥演示适配器：让本地模板假评审替用户定主案没有意义。
+        # 有干预通道（Web / 交互式 CLI）→ 视同未配置，转人工审核；
+        # 无人值守（无 handler）→ 保持保守兜底：取首个候选并在事件中注明。
+        judge_usable = judge is not None and judge.adapter != "fake"
+        if judge is None or not auto:
+            selected = await self._human_selection(round_, reason="judge.auto_select = false")
+            mode = "human"
+        elif not judge_usable and self.handler is None:
+            selected = next(iter(self.state.proposals))
+            mode = "auto-fallback"
+        elif not judge_usable:
+            selected = await self._human_selection(
+                round_,
+                reason="Judge 为 fake 演示适配器（无真实模型），视同未配置，转人工审核",
+            )
+            mode = "human"
+        else:
             try:
                 selected = await self._judge_selection(round_, judge)
                 mode = "judge"
             except NodeUnavailable as err:
                 selected = await self._human_selection(round_, reason=str(err))
                 mode = "human"
-        else:
-            selected = await self._human_selection(round_, reason="judge.auto_select = false")
-            mode = "human"
         await self._emit(
             EventType.PHASE_COMPLETED,
             PhaseCompleted(

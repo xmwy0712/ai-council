@@ -58,6 +58,9 @@ AdapterBuilder = Callable[[Config], dict[str, Adapter]]
 # breakpoint. 12h is generous for a live server; the browser can resume at any
 # time before that.
 _RESUME_TIMEOUT_S = 43200.0
+# 选主案兜底超时：有浏览器连着但一直不选，超时自动取首个候选。
+# 比续跑询问短——选主案是轻量操作，挂半天等于会话死亡。
+_SELECT_TIMEOUT_S = 1800.0
 
 
 class HubError(RuntimeError):
@@ -145,6 +148,7 @@ class _HubHandler:
 
     def __init__(self, hub: SessionHub) -> None:
         self._hub = hub
+        self._select_timeout_s = _SELECT_TIMEOUT_S
 
     async def on_failure(self, req: InterventionRequest) -> InterventionDecision:
         answer = await self._hub.ask(
@@ -168,15 +172,27 @@ class _HubHandler:
         )
 
     async def on_select(self, req: SelectionRequest) -> str:
-        answer = await self._hub.ask(
-            "select",
-            {
-                "session_id": req.session_id,
-                "candidates": list(req.candidates),
-                "reason": req.reason,
-            },
-        )
-        return str(answer.get("node_id") or "")
+        try:
+            answer = await asyncio.wait_for(
+                self._hub.ask(
+                    "select",
+                    {
+                        "session_id": req.session_id,
+                        "candidates": list(req.candidates),
+                        "reason": req.reason,
+                    },
+                ),
+                timeout=self._select_timeout_s,
+            )
+            return str(answer.get("node_id") or "")
+        except asyncio.TimeoutError:
+            # 无人值守兜底（文档承诺：绝不因没人回答而挂死）：
+            # 超时自动取首个候选，并把待答弹窗一并收掉。
+            fallback = str(req.candidates[0]) if req.candidates else ""
+            for ask_id, ticket in list(self._hub._pending.items()):
+                if ticket.kind == "select":
+                    self._hub.answer(ask_id, {"node_id": fallback})
+            return fallback
 
     async def on_decision(self, req: DecisionRequest) -> str:
         answer = await self._hub.ask(

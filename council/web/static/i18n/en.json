@@ -1,6 +1,5 @@
 {
   "app.title": "AI Council — multi-model deliberation",
-  "brand.tag": "multi-model council",
   "nav.new": "New",
   "nav.back": "Back",
   "settings.open": "Settings",
@@ -119,5 +118,18 @@
   "roster.level.none": "Thinking: off",
   "roster.level.minimal": "Thinking: minimal",
   "roster.level.xhigh": "Thinking: extra high",
-  "roster.level.max": "Thinking: max"
+  "roster.level.max": "Thinking: max",
+  "diag.title": "Local CLI environment",
+  "diag.run": "Check environment",
+  "diag.installed": "installed",
+  "diag.missing": "not found (install via npm/pip and add to PATH)",
+  "diag.authed": "logged in",
+  "diag.unauth": "not logged in",
+  "diag.auth_unknown": "unknown",
+  "diag.check_failed": "check failed",
+  "diag.see_detail": "details",
+  "tune.title": "Run tuning",
+  "tune.idle": "Stall timeout (s)",
+  "tune.retries": "Retries after stall",
+  "tune.hint": "Applied when you start a session; saved locally immediately."
 }

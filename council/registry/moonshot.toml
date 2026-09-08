@@ -12,6 +12,8 @@ display = "Moonshot Kimi"
 base_url = "https://api.moonshot.cn/v1"
 secret_env = "MOONSHOT_API_KEY"
 adapter = "openai_api"
+# K 系思考模型 temperature 固定 1.0，传其他值直接 400 —— 适配器将省略 temperature
+omit_temperature = true
 docs = "https://platform.moonshot.cn/docs/guide/use-thinking-models"
 
 [[models]]
