@@ -442,21 +442,6 @@ function initCursorTrail() {
     { color: "#c2c2cc", r: 3.0, orbitR: 82, theta: 5.5, omega: -0.35 },
   ].map((p) => ({ ...p, x: null, y: null, vx: 0, vy: 0 }));
 
-  // 恒星锚点限制在安全区内（边缘留出最大行星轨道 + 光晕余量）：
-  // 否则光标移到视口边缘时，行星公转到画布外被裁掉，贴边留下一竖条
-  // 被切开的彩色弧段（视觉上像鼠标在页面边缘留下了痕迹）。
-  const EDGE = 100; // 最大行星轨道 82 + 光晕/行星半径余量
-  const clampX = (v) => {
-    const w = canvas.clientWidth;
-    if (w <= EDGE * 2) return w / 2;
-    return Math.min(Math.max(v, EDGE), w - EDGE);
-  };
-  const clampY = (v) => {
-    const h = canvas.clientHeight;
-    if (h <= EDGE * 2) return h / 2;
-    return Math.min(Math.max(v, EDGE), h - EDGE);
-  };
-
   // 恒星与行星始终跟随光标
   window.addEventListener("pointermove", (event) => {
     const x = event.clientX;
@@ -464,8 +449,8 @@ function initCursorTrail() {
     if (cx === null) {
       cx = x;
       cy = y;
-      sx = clampX(x);
-      sy = clampY(y);
+      sx = x;
+      sy = y;
       for (const p of planets) {
         p.x = sx + Math.cos(p.theta) * p.orbitR;
         p.y = sy + Math.sin(p.theta) * p.orbitR;
@@ -478,16 +463,36 @@ function initCursorTrail() {
 
   window.addEventListener("pointerleave", () => { /* 恒星留在原地继续发光 */ });
 
-    // 可交互卡片区域：行星绕行到这些框内会被「挡住」（每帧擦除其覆盖像素）
-    const drawOccluders = () => {
+    // 可交互卡片区域：行星绕行到这些框内会被「挡住」（每帧擦除其覆盖像素）。
+    // 卡片矩形同时供行星绘制做「边缘淡出」：行星在卡片边缘外先变透明再被
+    // 擦除，避免全 alpha 撞上擦除边界被硬切成半圆残片（鼠标移到卡片/视口
+    // 右缘时，缝隙里露出被切开的彩色弧段 = 用户看到的「右侧色块错乱」）。
+    const cardRects = [];
+    const collectCards = () => {
+      cardRects.length = 0;
       document.querySelectorAll(".card, .topbar").forEach((el) => {
         const r = el.getBoundingClientRect();
-        if (r.width > 0 && r.height > 0) ctx.clearRect(r.x, r.y, r.width, r.height);
+        if (r.width > 0 && r.height > 0) cardRects.push({ l: r.x, t: r.y, r: r.x + r.width, b: r.y + r.height });
       });
+    };
+    // 行星中心 (x,y) 到最近卡片矩形的距离；在卡片内为 0。
+    const distToCards = (x, y) => {
+      let best = Infinity;
+      for (const c of cardRects) {
+        const dx = Math.max(c.l - x, 0, x - c.r);
+        const dy = Math.max(c.t - y, 0, y - c.b);
+        const d = Math.hypot(dx, dy);
+        if (d < best) best = d;
+      }
+      return best;
+    };
+    const drawOccluders = () => {
+      for (const c of cardRects) ctx.clearRect(c.l, c.t, c.r - c.l, c.b - c.t);
     };
 
     const step = () => {
     frame += 1;
+    collectCards();
     ctx.clearRect(0, 0, canvas.clientWidth, canvas.clientHeight);
     const [r, g, b] = accentRGB;
 
@@ -495,8 +500,6 @@ function initCursorTrail() {
       // 恒星平滑跟随光标
       sx += (cx - sx) * 0.35;
       sy += (cy - sy) * 0.35;
-      sx = clampX(sx);
-      sy = clampY(sy);
 
       // 连续光拖尾：每帧记录恒星位置，形成不断渐隐的一条光线
       const now = performance.now();
@@ -528,12 +531,24 @@ function initCursorTrail() {
       // 行星：锚点沿轨道公转，弹簧引力把行星拉向锚点——
       // 引力随轨道半径衰减（近紧远松，更有真实感）；
       // 快速移动时行星被大幅甩在身后，骤停时冲过头再缓慢回摆
+      // 轨道自适应收缩：恒星（鼠标）可以自由移动到任何位置包括贴边，
+      // 但行星绕恒星的轨道半径在靠近画布边缘时自动收小——轨道锚点永远
+      // 不越出画布，行星因此始终完整环绕恒星、不会被 canvas 硬裁成半圆
+      // 残片，也不会被弹簧拉向画布外而堆在边界排成一列。
+      // （实测：边缘反弹会把行星压死在边界成一竖条，轨道收缩才能让
+      //   行星在边缘处自然聚成环绕的一小圈。）
+      const edgeX = Math.min(sx, canvas.clientWidth - sx);
+      const edgeY = Math.min(sy, canvas.clientHeight - sy);
+      // 距最近边缘 <90px 开始收小；下限 0.32 → 贴边时最外圈 ~26px，
+      // 行星依然围成清晰可辨的一小圈而不是挤成一个点。
+      const orbitScale = Math.max(0.32, Math.min(1, Math.min(edgeX, edgeY) / 90));
       for (const p of planets) {
         p.theta += p.omega / 60;
-        const ax = sx + Math.cos(p.theta) * p.orbitR;
-        const ay = sy + Math.sin(p.theta) * p.orbitR;
+        const effR = Math.max(p.r * 3.2, p.orbitR * orbitScale);
+        const ax = sx + Math.cos(p.theta) * effR;
+        const ay = sy + Math.sin(p.theta) * effR;
         if (p.x === null) { p.x = ax; p.y = ay; }
-        const gpull = 0.009 * (36 / p.orbitR); // 更弱的吸引 + 距离衰减
+        const gpull = 0.009 * (36 / effR); // 更弱的吸引 + 距离衰减
         p.vx += (ax - p.x) * gpull;
         p.vy += (ay - p.y) * gpull;
         p.vx *= 0.96;               // 低阻尼：惯性滑行更远、回摆更久
@@ -554,14 +569,25 @@ function initCursorTrail() {
       ctx.arc(sx, sy, haloR, 0, Math.PI * 2);
       ctx.fill();
 
-      // 行星：淡色柔光 + 实心圆
+      // 行星：淡色柔光 + 实心圆。
+      // 靠近卡片时平滑淡出（卡片边缘外 26px 缓冲带内 alpha 线性降到 0），
+      // 与 occluder 的擦除配合：行星以低 alpha 抵达擦除边界，不会留下
+      // 被硬切的高对比半圆残片。
+      const FADE = 26;
       for (const p of planets) {
+        // 行星中心到最近卡片边缘的距离；在卡片内 d=0 → 完全不画
+        const d = distToCards(p.x, p.y);
+        let fade = 1;
+        if (d < FADE) {
+          fade = Math.max(0, d / FADE);
+          if (fade <= 0.01) continue;   // 中心在卡片内：跳过，留给 occluder 处理
+        }
         ctx.fillStyle = p.color;
-        ctx.globalAlpha = 0.22;
+        ctx.globalAlpha = 0.22 * fade;
         ctx.beginPath();
         ctx.arc(p.x, p.y, p.r * 2.1, 0, Math.PI * 2);
         ctx.fill();
-        ctx.globalAlpha = 1;
+        ctx.globalAlpha = 1 * fade;
         ctx.beginPath();
         ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
         ctx.fill();
