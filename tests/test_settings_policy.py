@@ -124,3 +124,28 @@ def test_locale_has_keys_for_relocated_controls() -> None:
     for key in ("settings.raw.enable", "settings.raw.on", "settings.raw.off", "tune.policy"):
         assert zh.get(key), key
         assert en.get(key), key
+
+
+def test_i18n_dependent_renders_run_after_locale_loads() -> None:
+    """依赖译文的首屏渲染必须排在 loadLocale 之后。
+
+    曾经的缺陷：applyExportRaw() 写在 loadLocale 之前，启动时译文表还是空的，
+    于是会话页的只读提示直接显示成了键名「settings.raw.off」。
+    翻译在加载完成前会是 undefined，写进界面就是键名本身。
+
+    这里用「文件里的出现位置」判定先后：boot() 内 applyExportRaw() 必须在
+    await loadLocale(...) 之后。
+    """
+    js = (ASSETS / "app.js").read_text(encoding="utf-8")
+    boot = js.split("async function boot()")[1].split("document.addEventListener")[0]
+
+    locale_at = boot.index("await loadLocale(")
+    export_at = boot.index("applyExportRaw()")
+    assert export_at > locale_at, (
+        "applyExportRaw() 必须排在 loadLocale 之后，否则界面会显示 settings.raw.* 键名"
+    )
+
+    # 切换语言后也要重刷该提示（否则语言切了、这行文字不变）
+    switch = js.split("function switchLang(")[1].split("const POLICY_VALUES")[0]
+    assert "applyExportRaw()" in switch, "语言切换后需重刷导出格式提示"
+    assert "renderPolicyOptions()" in switch, "语言切换后需重刷失败策略选项"

@@ -1689,6 +1689,8 @@ function switchLang(lang) {
     renderRoster();
     renderRosterEditor();
     renderConfigWarnings();
+    renderPolicyOptions();
+    applyExportRaw();
     syncLangSeg();
   });
 }
@@ -1810,11 +1812,13 @@ async function boot() {
   bindBoot();
   bindHelpTips();
   applyFxSetting();
-  applyExportRaw();
   bindTuningInputs();
   renderTuningInputs();
   await loadLocale(LANG);
   await fetchThemes();
+  // 必须在 loadLocale 之后：它要给会话页的只读提示写文案，
+  // 早于译文加载会把 i18n 键名直接写到界面上（settings.raw.off）
+  applyExportRaw();
   try {
     META = await api("/api/meta");
     try { MODELS = await api("/api/models"); } catch (_) { MODELS = null; }
