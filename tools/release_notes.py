@@ -192,7 +192,8 @@ def build(version: str, body: str) -> str:
         parts.append(f"## v{ver}\n\n{body}")
 
     parts.append(INSTALL_BLOCK.rstrip())
-    prev = _prev_tag(ver)
+    # 前一版优先查真实 tag；仓库无 tag（如 CI 检出）时回退到 CHANGELOG 的版本列表
+    prev = _prev_tag(ver) or _prev_from_changelog(ver)
     if prev:
         parts.append(
             f"\n**完整变更对比 / Full Changelog**: "
@@ -249,6 +250,32 @@ def _prev_tag(ver: str) -> str:
 
     # 没有更早的版本（首个发布）——返回空串，调用方会改成列全部提交的链接
     return ""
+
+
+def _prev_from_changelog(version: str) -> str:
+    """从 CHANGELOG 的版本标题列表里取前一个版本。
+
+    CI 检出（actions/checkout 默认）不带 tag，本地也无 tag 时 _prev_tag 只能返回空串，
+    于是发布说明会退化成「全部提交」。CHANGELOG 是随代码一起检出的，用它兜底。
+
+    只考虑 ≥1.0.0 的版本：0.x 从未发布到 GitHub（无对应 tag），
+    拿它做对比链接会指向不存在的 tag。
+    """
+    ver = version.lstrip("v")
+
+    def parse(v: str) -> tuple[int, ...]:
+        return tuple(int(x) for x in re.findall(r"\d+", v)[:3])
+
+    text = CHANGELOG.read_text(encoding="utf-8") if CHANGELOG.exists() else ""
+    cur = parse(ver)
+    earlier = [
+        m.group("ver")
+        for m in HEADING.finditer(text)
+        if m.group("ver") != ver
+        and parse(m.group("ver")) < cur
+        and parse(m.group("ver")) >= (1, 0, 0)
+    ]
+    return f"v{max(earlier, key=parse)}" if earlier else ""
 
 
 def main(argv: list[str] | None = None) -> int:
