@@ -10,8 +10,8 @@
 schema_version = 1
 
 [council]
-max_nodes = 5          # 上限 5，硬约束
-active_nodes = 3        # 1..5（建议 ≥2），必须等于下方启用的参与者数量
+max_nodes = 3          # 上限 3，硬约束（Judge 是独立节点，不占这 3 个名额）
+active_nodes = 3        # 1..3（建议 ≥2），必须等于下方启用的参与者数量
 max_rounds = 8          # P3–P6 循环上限
 debate_rounds = 2       # 每轮评审内的辩论轮数（0 = 跳过辩论）
 language = "zh-CN"      # 影响提示词模板与 UI 文案
@@ -43,6 +43,22 @@ max_chars_review = 4000     # 评审字数上限
 max_chars_debate = 1200     # 辩论单条字数上限
 temperature = 0.2
 persist_chunks = true       # 是否把流式增量写入事件日志
+
+# --------------------------------------------------------- 在线模型清单更新
+# 默认关闭。开启后，AI Council 会向各厂商自己的「列出模型」接口询问当前
+# 在役的模型，并把注册表里还没有的 id 写入 <数据目录>/registry/discovered/。
+# 只补缺，不覆盖：内置注册表里的条目带已核实的思考档位与上下文长度，永远优先。
+# 三条探测路径覆盖 13/14 家：OpenAI 兼容 GET {base_url}/models、Anthropic
+# /v1/models、Google v1beta/models；cli_session 没有可查询的接口，不更新。
+# 网页端「设置 → 模型清单更新」里也有开关，界面选择存在数据目录、优先于这里。
+
+[updates]
+enabled = false             # true = 允许联网更新（也可在网页设置里开启）
+check_on_start = true       # 开启后，启动服务时顺带检查一次
+min_interval_h = 24         # 距上次检查不足这么多小时就跳过，避免频繁探测
+catalog_url = ""            # 留空用默认的公开目录（OpenRouter，无需密钥），仅用于补全上下文长度
+timeout_s = 20              # 单个厂商请求超时
+exclude_patterns = []       # 额外的排除子串（内置已排除 embedding / tts / whisper / 图像 / 历史快照等）
 
 # --------------------------------------------------------------- 参与者节点
 # adapter：fake（内置）/ openai_api / anthropic_api / google_api /
@@ -180,6 +196,7 @@ warn_if_weak_model = true
 # ----------------------------------------------------- 2026-09-05 厂商扩展
 # 新增厂商全部数据驱动接入：TOML 里写 adapter = "openai_api" 即可，
 # 无需任何 Python 代码。以下示例取消注释并调整 active_nodes 即可启用。
+# 注意：参与者上限为 3，同一场最多启用 3 家（Judge 是独立节点，不占名额）。
 # 各家模型清单与思考参数见 docs/PROVIDERS.md（核实 2026-09-05）。
 #
 # [[nodes]]

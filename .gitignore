@@ -32,3 +32,10 @@ Thumbs.db
 
 # Workbuddy dev notes (private scratch)
 .workbuddy/
+
+# 助手工作笔记与技能库（私人，不入公开仓库）
+memory/
+skills/
+
+# 助手工具临时目录
+.openclaw/

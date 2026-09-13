@@ -80,7 +80,12 @@ target-version = "py311"
 line-length = 100
 # council.py is the frozen reference prototype this project replaces; it is kept
 # for comparison only and is not part of the shipped package.
-extend-exclude = ["web", ".venv", "build", "dist", "council.py"]
+#
+# NOTE: do not add a bare "web" here. `extend-exclude` matches directory names
+# anywhere in the tree, so "web" silently excluded `council/web` — the module
+# that carries the FastAPI app — from `ruff check` in CI, which passes no
+# explicit path. Only `council/web/static` (plain JS/CSS) is worth excluding.
+extend-exclude = [".venv", "build", "dist", "council.py", "council/web/static"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
@@ -94,7 +99,7 @@ ignore = ["B008", "RUF001", "RUF002", "RUF003"]
 [tool.mypy]
 python_version = "3.11"
 strict = true
-files = ["council/core", "council/adapters", "council/web"]
+files = ["council/core", "council/adapters", "council/registry", "council/web"]
 warn_unreachable = true
 warn_redundant_casts = true
 disallow_untyped_defs = true

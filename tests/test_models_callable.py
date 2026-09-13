@@ -17,8 +17,12 @@ from council.adapters.google_api import GoogleAdapter
 from council.adapters.openai_api import OpenAIAdapter
 from council.core.config import NodeSection
 from council.core.contracts import ChatMessage, ChatRequest, ResponseFormat, Role
-from council.registry import get_registry
-from council.registry.loader import Registry
+from council.registry import Registry
+
+# 干跑校验的对象是**随包发布的已策展条目**。自动发现写进用户数据目录的覆盖层是
+# 刻意只带最少信息的用户数据（公开目录没报的上下文就不写），不该让它决定测试
+# 用例集，否则套件会随机器状态漂移。
+CURATED = Registry.load(include_discovered=False)
 
 _REQUIRED_KEYS = [
     "OPENAI_API_KEY",
@@ -57,7 +61,7 @@ def _request(model_id: str, thinking: str | None) -> ChatRequest:
 
 
 def _registry_cases() -> list[tuple[str, str]]:
-    registry = get_registry(reload=True)
+    registry = CURATED
     cases: list[tuple[str, str]] = []
     for provider in registry.providers.values():
         if provider.id == "fake":
@@ -72,7 +76,7 @@ CASES = _registry_cases()
 
 @pytest.mark.parametrize(("provider_id", "model_id"), CASES)
 def test_model_builds_valid_payload(provider_id: str, model_id: str) -> None:
-    registry = get_registry()
+    registry = CURATED
     model = registry.model(model_id)
     assert model is not None
     spec = registry.thinking_spec(provider_id, model_id)
@@ -154,6 +158,6 @@ def test_cli_subscription_defaults_resolve_to_no_model_flag() -> None:
 
 def test_registry_has_no_unknown_generation_slugs() -> None:
     """世代防伪回归：gpt-6 / 3.7-pro / 3.6-pro 等捏造 slug 永不存在。"""
-    registry: Registry = get_registry()
+    registry: Registry = CURATED
     for bad in ("gpt-6", "gemini-3.7-pro", "gemini-3.6-pro", "deepseek-v4-reasoner"):
         assert registry.model(bad) is None, bad

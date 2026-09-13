@@ -216,3 +216,38 @@ TODO：官方是否有直接控制思考预算的 CLI 参数（本次未取到�
 | stop_reason=refusal / blockReason | `content_refusal` | 否 |
 | 400 / 404（模型不存在等） | `contract`（配置问题，需人工介入） | 否 |
 | 其他 | `unknown` | 否 |
+
+## 列模型接口（模型清单更新，核实 2026-09-11）
+
+`[updates] enabled = true` 时用到的接口。全部经官方文档或官方 discovery 文档核实；响应形状由 `tests/test_discovery.py` 的离线用例钉住。
+
+| 厂商 / 协议 | 接口 | 鉴权 | 返回的关键字段 |
+|---|---|---|---|
+| OpenAI 兼容（10 家） | `GET {base_url}/models` | `Authorization: Bearer` | `data[].id`；`context_length` / `name` 仅在网关提供时读取 |
+| `openai_api` | `GET https://api.openai.com/v1/models` | 同上 | `id`、`created`、`owned_by`、可选 `shutdown_date` |
+| `anthropic_api` | `GET https://api.anthropic.com/v1/models` | `x-api-key` + `anthropic-version: 2023-06-01` | `id`、`display_name`、`max_input_tokens`、`max_tokens`、`created_at`；游标分页 `limit`(1–1000) / `after_id` / `before_id`，`has_more` |
+| `google_api` | `GET https://generativelanguage.googleapis.com/v1beta/models` | `x-goog-api-key` 头（**不用** `?key=`，避免密钥进日志/代理记录） | `name`（带 `models/` 前缀，写入前剥离）、`displayName`、`inputTokenLimit`、`outputTokenLimit`、`supportedGenerationMethods`（无 `generateContent` 的丢弃）；分页 `pageSize` / `pageToken` |
+| `ollama` / `vllm` | 走 OpenAI 兼容路径 | `secret_required = false`，不发 Authorization | 同 OpenAI 兼容 |
+| `cli_session` | 无 | — | 订阅可用模型由 CLI 决定，不更新 |
+| 公开目录（仅补上下文长度） | `GET https://openrouter.ai/api/v1/models` | 无需密钥 | `data[].id`（`owner/name[:variant]`）、`context_length` |
+
+刻意不读的字段：**价格**。`pricing` 在响应里，但那是网关对别家模型的标价，不是本项目愿意落笔的数字。
+
+匹配规则：公开目录只在「去掉 owner 前缀后与厂商原生 id 完全一致、且只有一个候选」时用于补 `max_context_tokens`；同名多 owner 一律放弃，不猜。
+
+### 新发现模型的思考档位推断（核实 2026-09-11）
+
+规则是「每模型信号 + 注册表已声明的旋钮」，两段都必须是别人的事实，不是本项目的猜测。
+
+| 厂商 | 每模型信号（决定是否声明） | 旋钮与档位来源 |
+|---|---|---|
+| `anthropic_api` | `capabilities.effort` 的各级真值；只有 `thinking.supported` 时降级为继承 provider 的 `budget_tokens` | `enum_effort` / `param = "effort"`，档位即厂商报出的真值；降级时用 `budget_tokens` 的 low/medium/high |
+| `google_api` | `Model.thinking`（布尔） | **同代际**已策展兄弟（`gemini-3` → `thinkingLevel`、`gemini-2` → `thinkingBudget`）；无同代际兄弟则不声明 |
+| OpenAI 兼容各家 | 公开目录 `supported_parameters` 含 `reasoning` / `include_reasoning` / `reasoning_effort` | `[provider.thinking]`；provider 未声明时取兄弟模型一致的声明（`style`/`param`/`extra` 必须完全一致） |
+| `cli_session` | 无 | 不声明 |
+
+档位名只接受本项目认可的词表：`none` / `minimal` / `low` / `medium` / `high` / `xhigh` / `max`。公开目录报出表外的名字一律丢弃——未知档位名正是「发错旋钮」的那类 400。
+
+凑不出非空档位表就**不声明**（`thinking = false`），模型仍可选用。典型情形：刚发布、公开目录尚未收录的模型（如 OpenAI 的 `gpt-live-1`），以及没有同代际兄弟的新一代 Gemini。
+
+**为什么档位名可以来自公开目录，参数名不行**：目录的 `supported_efforts` 描述的是网关自己的参数词汇，而本项目发的是各厂商**原生**端点的参数（Anthropic `effort`、Google `thinkingLevel`）。档位名是抽象的（low/medium/high 在两侧都成立），参数名不是，所以参数名永远取自注册表。

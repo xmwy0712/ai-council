@@ -39,6 +39,7 @@ __all__ = [
     "NodeSection",
     "SanitizeSection",
     "TimeoutSection",
+    "UpdateSection",
     "default_config",
     "diff_configs",
     "fingerprint",
@@ -47,7 +48,12 @@ __all__ = [
 
 SCHEMA_VERSION: Final[int] = 1
 MIN_NODES: Final[int] = 1
-MAX_NODES: Final[int] = 5
+#: Upper bound on *participants*. The judge is a separate node and deliberately
+#: does not count against this, so a full council is 3 participants + 1 judge.
+#: Three is a hard product decision, not a runtime knob: ``max_nodes`` and
+#: ``active_nodes`` are both clamped to it, so a four-participant config is
+#: rejected at validation time rather than failing mid-session.
+MAX_NODES: Final[int] = 3
 
 _HEX_COLOR: Final = re.compile(r"^#[0-9a-fA-F]{6}$")
 _LANGUAGE: Final = re.compile(r"^[a-z]{2}-[A-Z]{2}$")
@@ -115,6 +121,27 @@ class SanitizeSection(_Strict):
     disabled_rules: tuple[str, ...] = ()
 
 
+class UpdateSection(_Strict):
+    """Online model discovery — off by default.
+
+    The app's headline promise is that it talks to nothing but model endpoints.
+    That promise has to hold out of the box, so keeping the model list fresh is
+    something the user opts into, from the web settings panel or by editing
+    this section. Turning it on adds exactly two kinds of request: each
+    vendor's own model-listing endpoint, and the public catalogue below.
+    """
+
+    enabled: bool = False
+    check_on_start: bool = True
+    #: Skip the start-up check if the last one is younger than this. Keeps a
+    #: long-running server from re-probing every vendor on every page load.
+    min_interval_h: float = Field(default=24.0, ge=0, le=24 * 30)
+    catalog_url: str = ""
+    timeout_s: float = Field(default=20.0, gt=0, le=300)
+    #: Extra substrings to reject, on top of the built-in non-chat filter.
+    exclude_patterns: tuple[str, ...] = ()
+
+
 class BudgetSection(_Strict):
     context_tokens: int = Field(default=60_000, ge=1_000)
     reserve_output_tokens: int = Field(default=4_000, ge=256)
@@ -180,6 +207,7 @@ class Config(_Strict):
     attachments: AttachmentSection = Field(default_factory=AttachmentSection)
     sanitize: SanitizeSection = Field(default_factory=SanitizeSection)
     budget: BudgetSection = Field(default_factory=BudgetSection)
+    updates: UpdateSection = Field(default_factory=UpdateSection)
     nodes: list[NodeSection] = Field(default_factory=list)
     judge: JudgeSection | None = None
 
@@ -313,9 +341,13 @@ def fingerprint(config: Config) -> str:
     """Stable hash of the *behavioural* part of the config.
 
     Used to warn on resume: if the fingerprint changed, the suspended session
-    was authored under different rules.
+    was authored under different rules. ``[updates]`` is excluded because
+    whether the model list refreshes cannot change how a session deliberates —
+    and including it would make every paused session look tampered-with the
+    moment this section is introduced.
     """
     payload = config.model_dump(mode="json")
+    payload.pop("updates", None)
     blob = json.dumps(payload, sort_keys=True, ensure_ascii=False, separators=(",", ":"))
     return hashlib.sha256(blob.encode("utf-8")).hexdigest()[:16]
 

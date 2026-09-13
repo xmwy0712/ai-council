@@ -5,6 +5,7 @@ from __future__ import annotations
 import pytest
 
 from council.core.config import (
+    MAX_NODES,
     Config,
     ConfigError,
     default_config,
@@ -176,6 +177,52 @@ def test_load_config_bad_toml(tmp_path) -> None:
     path.write_text("council = [", encoding="utf-8")
     with pytest.raises(ConfigError, match="不是合法 TOML"):
         load_config(path)
+
+
+def test_participant_count_is_capped_and_judge_does_not_count() -> None:
+    """The ceiling is a hard product limit, enforced at validation time.
+
+    The judge is a separate node, so a full council is MAX_NODES participants
+    *plus* one judge — the earlier 5-node cap was never exercised by any test,
+    which is exactly the kind of drift this pins down.
+    """
+    assert MAX_NODES == 3
+
+    def build(n: int) -> dict[str, object]:
+        nodes: list[dict[str, object]] = [
+            {"id": f"n{i}", "adapter": "fake", "model": "m", "role": "participant"}
+            for i in range(1, n + 1)
+        ]
+        nodes.append({"id": "judge", "adapter": "fake", "model": "m", "role": "judge"})
+        return {
+            "council": {"active_nodes": n},
+            "failure": {"min_quorum": min(2, n)},
+            "nodes": nodes,
+            "judge": {"node_id": "judge"},
+        }
+
+    for n in range(1, MAX_NODES + 1):
+        config = parse_config(build(n))
+        assert len(config.participants) == n, f"{n} 名参与者应当被接受"
+        assert len(config.nodes) == n + 1
+        assert config.judge_node is not None
+
+    with pytest.raises(ConfigError, match="active_nodes"):
+        parse_config(build(MAX_NODES + 1))
+
+
+def test_participant_ceiling_cannot_be_bypassed_via_active_nodes() -> None:
+    """Four participants are rejected even when active_nodes stays legal."""
+    with pytest.raises(ConfigError, match="参与者节点数量"):
+        parse_config(
+            {
+                "council": {"active_nodes": MAX_NODES},
+                "nodes": [
+                    {"id": f"n{i}", "adapter": "fake", "model": "m"}
+                    for i in range(1, MAX_NODES + 2)
+                ],
+            }
+        )
 
 
 def test_shipped_example_config_is_valid() -> None:

@@ -86,12 +86,6 @@ const BUILTIN_THEMES = ["light", "dark", "high-contrast"];
 let currentTheme = null; // {id, label, mode, colors}
 let builtinThemes = [];
 
-function themeLabel(theme) {
-  if (!theme || !theme.label) return theme && theme.id ? theme.id : "";
-  if (typeof theme.label === "object") return theme.label[LANG] || theme.label.en || "";
-  return theme.label;
-}
-
 async function fetchThemes() {
   builtinThemes = [];
   for (const id of BUILTIN_THEMES) {
@@ -100,18 +94,7 @@ async function fetchThemes() {
       builtinThemes.push(theme);
     } catch (_) { /* ignore one broken builtin */ }
   }
-  const select = $("theme-select");
-  select.replaceChildren();
-  builtinThemes.forEach((theme) => {
-    const option = h("option");
-    option.value = theme.id;
-    text(option, themeLabel(theme));
-    select.appendChild(option);
-  });
-  const custom = h("option");
-  custom.value = "__custom__";
-  text(custom, t("theme.builtin") + " · …");
-  select.appendChild(custom);
+  // 主题下拉框已删除：明暗切换直接用 builtinThemes，高对比/自定义主题暂不可达
 }
 
 function applyTheme(theme) {
@@ -144,35 +127,6 @@ function initSavedTheme() {
   } catch (_) { /* fall through to CSS default */ }
 }
 
-function exportCurrentTheme() {
-  const data = currentTheme || { id: "custom", label: { zh: "自定义", en: "custom" }, mode: "light", colors: {} };
-  const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
-  const link = h("a");
-  link.href = URL.createObjectURL(blob);
-  link.download = `ai-council-theme-${data.id || "custom"}.json`;
-  link.click();
-  URL.revokeObjectURL(link.href);
-}
-
-function importThemeFile(file) {
-  const reader = new FileReader();
-  reader.onload = () => {
-    try {
-      const theme = JSON.parse(String(reader.result));
-      if (!theme.colors || typeof theme.colors !== "object" || !Object.keys(theme.colors).length) {
-        throw new Error("colors missing");
-      }
-      theme.id = theme.id || "custom";
-      theme.mode = theme.mode === "dark" ? "dark" : "light";
-      applyTheme(theme);
-      $("theme-select").value = "__custom__";
-    } catch (_) {
-      alert(t("theme.import") + ": JSON {colors:{…}}");
-    }
-  };
-  reader.readAsText(file);
-}
-
 /* ------------------------------------------------------- meta / roster */
 
 let META = null;   // /api/meta 缓存
@@ -189,6 +143,7 @@ function loadOverrides() {
 let OVERRIDES = loadOverrides();
 
 const TUNING_KEY = "council:tuning";
+const RAW_KEY = "council:export-raw";
 
 function loadTuning() {
   try {
@@ -202,10 +157,22 @@ function saveTuning() {
   try { localStorage.setItem(TUNING_KEY, JSON.stringify(TUNING)); } catch (_) { /* private mode */ }
 }
 
+/** 导出格式（是否导出 raw）——设置项，非会话参数。 */
+function loadExportRaw() {
+  try { return localStorage.getItem(RAW_KEY) === "true"; } catch (_) { return false; }
+}
+let EXPORT_RAW = loadExportRaw();
+
+function saveExportRaw() {
+  try { localStorage.setItem(RAW_KEY, EXPORT_RAW ? "true" : "false"); } catch (_) { /* private mode */ }
+}
+
 function collectTuning() {
   const out = {};
   if (TUNING.idle_s > 0) out.idle_s = TUNING.idle_s;
   if (TUNING.max_retries >= 0) out.max_retries = TUNING.max_retries;
+  // 策略只影响新建会话；已开的会话沿用创建时的值
+  if (TUNING.policy) out.policy = TUNING.policy;
   return Object.keys(out).length ? out : null;
 }
 
@@ -231,6 +198,10 @@ function renderRoster() {
     ? " · " + t("meta.judge").replace("{name}", META.judge_node.display || META.judge_node.id)
     : "";
   text(host, t("meta.roster").replace("{n}", String(nodes.length)).replace("{names}", names) + judge);
+}
+
+function closePanels() {
+  document.querySelectorAll(".mp-panel").forEach((node) => node.classList.add("hidden"));
 }
 
 function renderRosterEditor() {
@@ -267,10 +238,31 @@ function renderRosterEditor() {
     keep.value = "";
     text(keep, t("roster.keep").replace("{model}", node.model_display || node.model));
     modelSel.appendChild(keep);
+    // 只推荐此刻真的能用的模型：厂商有密钥（或免密端点），且模型通过离线扫描
+    const usableIds = new Set();
     (MODELS ? MODELS.providers : []).forEach((provider) => {
+      if (provider.available === false) return;
+      provider.models.forEach((m) => { if (m.usable !== false) usableIds.add(m.id); });
+    });
+    const hint = h("span", "r-hint");
+    hint.dataset.i18nTip = "roster.need_key";
+    hint.dataset.tip = t("roster.need_key");
+    text(hint, t("roster.need_key"));
+    hint.classList.toggle("hidden", usableIds.has(node.model));
+    row.appendChild(hint);
+    (MODELS ? MODELS.providers : []).forEach((provider) => {
+      // 未注入密钥的厂商整组隐藏——选中它只会让会议中途失败
+      if (provider.available === false) return;
+      // 同一家就是一组：策展在前、自动发现在后，不再拆成两组
+      const offered = provider.models.filter((m) => m.usable !== false);
+      const ordered = [
+        ...offered.filter((m) => !m.discovered),
+        ...offered.filter((m) => m.discovered),
+      ];
+      if (!ordered.length) return;
       const group = h("optgroup");
       group.label = provider.display;
-      provider.models.forEach((m) => {
+      ordered.forEach((m) => {
         const opt = h("option");
         opt.value = m.id;
         text(opt, m.display);
@@ -280,6 +272,124 @@ function renderRosterEditor() {
     });
     modelSel.value = saved.model || "";
     modelWrap.appendChild(modelSel);
+
+    // 原生 select 折叠不了分组，换自建面板：每家先露出 3 个，其余收进「展开其余」；
+    // 每次打开都重建面板——折叠状态复位，当前选中的模型置顶。
+    modelWrap.classList.add("mp-wrap");
+    modelSel.hidden = true;
+    const trigger = h("button", "mp-trigger");
+    trigger.type = "button";
+    const panel = h("div", "mp-panel hidden");
+    const displayFor = (id) => {
+      for (const provider of MODELS ? MODELS.providers : []) {
+        const m = provider.models.find((x) => x.id === id);
+        if (m) return m.display || m.id;
+      }
+      return id;
+    };
+    const refreshTrigger = () => {
+      const id = modelSel.value;
+      if (!id) {
+        text(trigger, t("roster.keep").replace("{model}", node.model_display || node.model));
+      } else {
+        text(trigger, displayFor(id));
+      }
+      panel.querySelectorAll(".mp-opt").forEach((opt) => {
+        opt.classList.toggle("selected", opt.dataset.value === id);
+      });
+    };
+    const pickable = (MODELS ? MODELS.providers : [])
+      .filter((provider) => provider.available !== false)
+      .map((provider) => ({
+        display: provider.display,
+        // 策展在前、自动发现在后：新模型排前面，但同属一组
+        models: [
+          ...provider.models.filter((m) => m.usable !== false && !m.discovered),
+          ...provider.models.filter((m) => m.usable !== false && m.discovered),
+        ],
+      }))
+      .filter((group) => group.models.length);
+    const choose = (id) => {
+      modelSel.value = id;
+      modelSel.dispatchEvent(new Event("change"));
+      refreshTrigger();
+      closePanels();
+    };
+    const rebuildPanel = () => {
+      panel.replaceChildren();
+      const id = modelSel.value;
+      // 「不选择」常驻最上方：选了模型之后也要能退回不覆盖（沿用配置里的默认模型）。
+      // 它对应原生 select 里 value="" 的那一项，选它就是清空覆盖。
+      const none = h("button", "mp-opt mp-none");
+      none.type = "button";
+      none.dataset.value = "";
+      text(none, t("picker.none").replace("{model}", node.model_display || node.model));
+      none.addEventListener("click", () => choose(""));
+      panel.appendChild(none);
+      // 当前选中的模型置顶：不管它属于哪家、排在多后，打开就能看到/改回
+      if (id) {
+        const pinned = h("button", "mp-opt mp-pinned selected");
+        pinned.type = "button";
+        pinned.dataset.value = id;
+        text(pinned, displayFor(id));
+        pinned.addEventListener("click", () => choose(id));
+        panel.appendChild(pinned);
+      }
+      const VISIBLE = 3; // 每家超过 3 个就折叠，避免一屏塞满
+      pickable.forEach((group) => {
+        const head = h("div", "mp-group-h");
+        text(head, group.display);
+        panel.appendChild(head);
+        const rest = h("div", "mp-fold");
+        rest.hidden = true;
+        group.models.forEach((m, index) => {
+          const opt = h("button", "mp-opt");
+          opt.type = "button";
+          opt.dataset.value = m.id;
+          text(opt, m.display || m.id);
+          opt.addEventListener("click", () => choose(m.id));
+          if (index < VISIBLE) panel.appendChild(opt);
+          else rest.appendChild(opt);
+        });
+        if (rest.childElementCount) {
+          const more = h("button", "mp-more");
+          more.type = "button";
+          text(more, t("picker.more").replace("{n}", String(rest.childElementCount)));
+          more.addEventListener("click", (event) => {
+            // 只隐藏不 remove：在事件派发途中把节点摘出 DOM 会打断冒泡，
+            // 让 document 层的关闭处理器拿到游离节点而误判
+            event.stopPropagation();
+            rest.hidden = false;
+            more.classList.add("hidden");
+          });
+          panel.appendChild(more);
+          panel.appendChild(rest);
+        }
+      });
+      refreshTrigger();
+    };
+    // 面板内的点击（触发/选项/展开）不冒泡到 document——那里的关闭处理器
+    // 只该管真正的"面板外"点击，且不能受游离节点影响
+    modelWrap.addEventListener("click", (event) => event.stopPropagation());
+    trigger.addEventListener("click", () => {
+      const opening = panel.classList.contains("hidden");
+      closePanels();
+      if (opening) {
+        rebuildPanel(); // 重开即复位：折叠收起、选中置顶
+        panel.classList.remove("hidden");
+      }
+    });
+    modelWrap.appendChild(trigger);
+    modelWrap.appendChild(panel);
+    refreshTrigger();
+    // 提示显隐按「生效中的选择」算，而不是配置里的原始模型——否则刷新页面后
+    // 覆盖项明明已经选中了真实模型，提示还挂着
+    hint.classList.toggle("hidden", usableIds.has(modelSel.value));
+    modelSel.addEventListener("change", () => {
+      // 选中真实模型后提示即时消失；改回不可用模型时提示即时回来
+      hint.classList.toggle("hidden", usableIds.has(modelSel.value));
+      refreshTrigger();
+    });
 
     const thinkWrap = h("label", "select-wrap r-think-wrap");
     const thinkSel = h("select", "r-thinking");
@@ -428,9 +538,31 @@ function initCursorTrail() {
 
   const resize = () => {
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    canvas.width = Math.round(canvas.clientWidth * dpr);
-    canvas.height = Math.round(canvas.clientHeight * dpr);
+    const w = Math.round(canvas.clientWidth * dpr);
+    const h = Math.round(canvas.clientHeight * dpr);
+    // 尺寸未变就不重设：赋值 canvas.width 会清空画布并重置变换，
+    // 也会再次触发下面的 ResizeObserver，形成自我循环。
+    if (canvas.width === w && canvas.height === h) return;
+    canvas.width = w;
+    canvas.height = h;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  };
+
+  // 滚动条出现/消失会改变 clientWidth，却不触发 window resize。
+  // 光靠 resize 事件，缓冲会停在旧尺寸，而每帧只清到「此刻」的 clientWidth，
+  // 于是右缘留下一条永不擦除、越画越花的像素带——鼠标经过就留痕。
+  // 盯住元素自身尺寸，并让清屏覆盖整个缓冲（见 step / stop）。
+  const observer = new ResizeObserver(resize);
+  observer.observe(canvas);
+
+  // 清屏必须盖住整个缓冲，而不是「此刻的 clientWidth」：
+  // 缓冲尺寸与 CSS 尺寸不一致的那一瞬间，用后者清屏会把右缘一条留在画布上。
+  // 临时置回单位变换，按设备像素尺寸清到底。
+  const clearWholeCanvas = () => {
+    ctx.save();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.restore();
   };
 
   // 行星：淡色、适中大小、各自轨道（轨道本身不画出）
@@ -493,7 +625,7 @@ function initCursorTrail() {
     const step = () => {
     frame += 1;
     collectCards();
-    ctx.clearRect(0, 0, canvas.clientWidth, canvas.clientHeight);
+    clearWholeCanvas();
     const [r, g, b] = accentRGB;
 
     if (cx !== null) {
@@ -615,7 +747,8 @@ function initCursorTrail() {
   return {
     stop: () => {
       window.cancelAnimationFrame(raf);
-      ctx.clearRect(0, 0, canvas.clientWidth, canvas.clientHeight);
+      observer.disconnect();
+      clearWholeCanvas();
     },
   };
 }
@@ -653,11 +786,16 @@ let seenSeqs = new Set();
 let digestTimer = null;
 let lastStatus = "";
 
+const VIEWS = ["home", "new", "history", "settings", "session"];
+
 function showView(name) {
-  $("view-new").classList.toggle("hidden", name !== "new");
-  $("view-session").classList.toggle("hidden", name !== "session");
-  $("btn-back").classList.toggle("hidden", name !== "session");
-  if (name === "new") refreshList();
+  VIEWS.forEach((v) => {
+    const node = $("view-" + v);
+    if (node) node.classList.toggle("hidden", v !== name);
+  });
+  $("btn-back").classList.toggle("hidden", name === "home");
+  if (name === "history") refreshList();
+  if (name === "settings") enterSettings();
 }
 
 function banner(el, message) {
@@ -1050,26 +1188,43 @@ function bindActions() {
   $("btn-pause").addEventListener("click", () => postAction("pause"));
   $("btn-resume").addEventListener("click", () => postAction("resume"));
   $("btn-stop").addEventListener("click", () => { if (confirm(t("act.stop") + "?")) postAction("stop"); });
-  $("policy-select").addEventListener("change", () => postAction("policy", { policy: $("policy-select").value }));
+  // 失败策略与导出格式已移到设置；这里只把当前设置反映到导出链接与提示气泡
   $("btn-export").addEventListener("click", () => {
-    $("btn-export").href = `/api/sessions/${SESSION_ID}/export?raw=${$("raw-toggle").checked ? "true" : "false"}`;
+    $("btn-export").href = `/api/sessions/${SESSION_ID}/export?raw=${EXPORT_RAW ? "true" : "false"}`;
   });
 }
 
 /* ------------------------------------------------------------------- lists */
 
-async function refreshList() {
-  try {
-    const data = await api("/api/sessions");
-    const list = $("session-list");
-    list.replaceChildren();
-    if (!data.sessions.length) {
-      const empty = h("p", "dim");
-      text(empty, t("list.empty"));
-      list.appendChild(empty);
-      return;
-    }
-    data.sessions.forEach((row) => {
+// 最近一次拉到的会话列表；检索在客户端过滤它，不再请求服务端。
+let SESSION_ROWS = [];
+
+/** 会话检索：按会议主题（问题原文）与会议时间（更新日期）过滤。
+ *  两个条件可单用也可合用；日期按「天」包含边界，与本地时区一致。 */
+function filterSessions(rows) {
+  const topic = ($("search-topic").value || "").trim().toLowerCase();
+  const from = $("search-from").value;
+  const to = $("search-to").value;
+  return rows.filter((row) => {
+    if (topic && !(row.question || "").toLowerCase().includes(topic)) return false;
+    const day = (row.updated_at || "").slice(0, 10);
+    if (from && (!day || day < from)) return false;
+    if (to && (!day || day > to)) return false;
+    return true;
+  });
+}
+
+function renderSessionList() {
+  const list = $("session-list");
+  const rows = filterSessions(SESSION_ROWS);
+  list.replaceChildren();
+  if (!rows.length) {
+    const empty = h("p", "dim");
+    // 区分「本来就没有会话」与「检索没命中」——两者的下一步不一样
+    text(empty, SESSION_ROWS.length ? t("search.empty") : t("list.empty"));
+    list.appendChild(empty);
+  }
+  rows.forEach((row) => {
       const div = h("div", "session-row");
       const q = h("span", "q");
       // 历史列表严格限长：超长问题截到 ~32 字符并以 … 代替，
@@ -1109,7 +1264,7 @@ async function refreshList() {
           if (SESSION_ID === row.session_id) {
             SESSION_ID = null;
             if (WS) { WS.close(); WS = null; }
-            showView("new");
+            showView("history");
           }
           refreshList();
         } catch (err) {
@@ -1122,8 +1277,36 @@ async function refreshList() {
       div.appendChild(when);
       div.appendChild(actions);
       list.appendChild(div);
-    });
+  });
+}
+
+async function refreshList() {
+  try {
+    const data = await api("/api/sessions");
+    SESSION_ROWS = data.sessions || [];
+    renderSessionList();
+    updateSearchSummary();
   } catch (_) { /* backend may be starting */ }
+}
+
+/** 检索结果计数；无筛选条件时不说话，避免日常多一行噪声。 */
+function updateSearchSummary() {
+  const el = $("search-summary");
+  const active = $("search-topic").value.trim() || $("search-from").value || $("search-to").value;
+  if (!active) { text(el, ""); return; }
+  text(el, t("search.summary").replace("{n}", filterSessions(SESSION_ROWS).length));
+}
+
+function bindSearch() {
+  const inputs = ["search-topic", "search-from", "search-to"];
+  inputs.forEach((id) => {
+    $(id).addEventListener("input", () => { renderSessionList(); updateSearchSummary(); });
+  });
+  $("search-clear").addEventListener("click", () => {
+    inputs.forEach((id) => { $(id).value = ""; });
+    renderSessionList();
+    updateSearchSummary();
+  });
 }
 
 function openSession(sessionId) {
@@ -1205,9 +1388,9 @@ async function keyStatus(name) {
   } catch (_) { return "unset"; }
 }
 
-async function openKeys() {
+async function enterSettings() {
   banner($("keys-error"), "");
-  $("settings-overlay").classList.remove("hidden");
+  loadUpdates();
   const rows = [];
   try {
     const overview = await api("/api/keys");
@@ -1248,8 +1431,16 @@ function renderKeyRows(rows) {
     text(source, sourceLabel(row.status));
     const save = h("button", "chip");
     text(save, t("keys.save"));
-    const del = h("button", "chip danger");
-    text(del, t("keys.delete"));
+    // 垃圾桶图标按钮：与输入框同行，不再独占一行把列表撑高
+    const del = h("button", "icon-btn");
+    del.type = "button";
+    del.title = t("keys.delete");
+    del.setAttribute("aria-label", t("keys.delete"));
+    del.innerHTML =
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" ' +
+      'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+      '<path d="M3 6h18"/><path d="M8 6V4h8v2"/>' +
+      '<path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg>';
     const shadow = h("div", "shadow-note hidden");
     text(shadow, t("keys.shadowed"));
     save.addEventListener("click", async () => {
@@ -1278,7 +1469,7 @@ function renderKeyRows(rows) {
       try {
         await api(`/api/keys/${encodeURIComponent(row.name)}`, { method: "DELETE" });
         storeCustomNames(customKeyNames().filter((name) => name !== row.name));
-        await openKeys();
+        await enterSettings();
       } catch (err) {
         banner($("keys-error"), `${t("keys.error.save")}: ${err.message}`);
       }
@@ -1311,7 +1502,7 @@ async function addCustomKey() {
     $("keys-custom-name").value = "";
     $("keys-custom-value").value = "";
     banner($("keys-error"), "");
-    await openKeys();
+    await enterSettings();
   } catch (err) {
     banner($("keys-error"), `${t("keys.error.save")}: ${err.message}`);
   }
@@ -1377,40 +1568,175 @@ async function runDiagnostics() {
   }
 }
 
+/* ------------------------------------------------------ model list updates */
+
+function renderUpdates(payload) {
+  const statusHost = $("updates-status");
+  const listHost = $("updates-list");
+  if (!statusHost || !listHost) return;
+  listHost.replaceChildren();
+
+  if (payload.last_error) {
+    text(statusHost, t("updates.error").replace("{error}", payload.last_error));
+  } else if (payload.last_check_at) {
+    const report = payload.report || {};
+    text(
+      statusHost,
+      t("updates.last")
+        .replace("{when}", payload.last_check_at)
+        .replace("{n}", String(report.new_total || 0))
+    );
+  } else {
+    text(statusHost, t("updates.never"));
+  }
+
+  const report = payload.report;
+  if (!report || !Array.isArray(report.providers)) return;
+  report.providers.forEach((p) => {
+    // 无事发生的厂商不必占位，否则列表里全是「无新模型」的噪声
+    if (!p.new.length && p.status === "ok") return;
+    const row = h("div", "diag-row");
+    const name = h("span", "diag-name");
+    text(name, p.display || p.provider);
+    row.appendChild(name);
+
+    const cls = p.status === "ok" ? "good" : p.status === "error" ? "bad" : "warn";
+    const tag = h("span", "diag-tag " + cls);
+    text(tag, t("updates.status." + p.status));
+    row.appendChild(tag);
+
+    if (p.new.length) {
+      const count = h("span", "diag-tag good");
+      text(count, t("updates.new").replace("{n}", String(p.new.length)));
+      row.appendChild(count);
+    }
+    if (p.status !== "ok" && p.detail) {
+      const detail = h("div", "diag-error");
+      text(detail, p.detail);
+      row.appendChild(detail);
+    }
+    listHost.appendChild(row);
+  });
+}
+
+async function loadUpdates() {
+  try {
+    const data = await api("/api/updates");
+    const toggle = $("updates-toggle");
+    if (toggle) toggle.checked = !!data.enabled;
+    const btn = $("btn-updates-refresh");
+    if (btn) btn.disabled = !data.enabled;
+    renderUpdates(data);
+  } catch (_) {
+    /* 设置面板取不到状态时保持沉默，不影响开会 */
+  }
+}
+
+async function toggleUpdates(enabled) {
+  const btn = $("btn-updates-refresh");
+  try {
+    const data = await api("/api/updates/enabled", {
+      method: "POST",
+      body: JSON.stringify({ enabled }),
+    });
+    if (btn) btn.disabled = !data.enabled;
+    renderUpdates(data);
+  } catch (err) {
+    const host = $("updates-status");
+    if (host) text(host, err.message);
+  }
+}
+
+async function refreshUpdates() {
+  const btn = $("btn-updates-refresh");
+  const host = $("updates-status");
+  if (!btn) return;
+  btn.disabled = true;
+  if (host) text(host, t("updates.running"));
+  try {
+    const data = await api("/api/updates/refresh", { method: "POST" });
+    renderUpdates(data);
+    // 新模型必须立刻出现在阵容编辑器的下拉里：重取注册表目录并重建编辑器，
+    // 否则用户要点「刷新」之后重启服务才看得到——那正是这个功能要消掉的摩擦。
+    try {
+      MODELS = await api("/api/models");
+      renderRosterEditor();
+    } catch (_) {
+      /* 目录重取失败不影响已写入的覆盖层，下次开面板会自然看到 */
+    }
+  } catch (err) {
+    if (host) text(host, err.message);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
 /* ------------------------------------------------------------------- boot */
+
+function syncLangSeg() {
+  document.querySelectorAll("#lang-seg .seg-btn").forEach((btn) => {
+    btn.classList.toggle("active", btn.dataset.lang === LANG);
+  });
+}
 
 function switchLang(lang) {
   LANG = lang === "en" ? "en" : "zh";
   localStorage.setItem("council:lang", LANG);
   loadLocale(LANG).then(() => {
-    const select = $("theme-select");
-    const id = currentTheme ? currentTheme.id : select.value;
-    if (id && id !== "__custom__") {
-      const theme = builtinThemes.find((item) => item.id === id);
-      if (theme) select.value = id;
-    }
+    // 明暗切换已改到顶栏的太阳/月亮按钮，主题下拉框不再存在
     fetchThemes();
     refreshList();
     renderRoster();
     renderRosterEditor();
     renderConfigWarnings();
+    syncLangSeg();
   });
+}
+
+const POLICY_VALUES = ["continue", "pause", "ask_user"];
+/** 把导出格式设置同步到「设置页复选框」与「会议页只读提示」两处。 */
+function applyExportRaw() {
+  const cb = $("raw-toggle");
+  if (cb) cb.checked = EXPORT_RAW;
+  const chip = $("raw-chip");
+  if (chip) text(chip, t(EXPORT_RAW ? "settings.raw.on" : "settings.raw.off"));
+}
+
+/** 失败策略下拉：设置页的（新建会话默认值）与弹窗里的（临时选择）共用同一批选项。 */
+function renderPolicyOptions() {
+  const select = $("tune-policy");
+  if (!select) return;
+  select.replaceChildren();
+  POLICY_VALUES.forEach((value) => {
+    const option = h("option");
+    option.value = value;
+    text(option, t("ask.policy." + value));
+    select.appendChild(option);
+  });
+  select.value = TUNING.policy || "ask_user";
 }
 
 function renderTuningInputs() {
   const idle = $("tune-idle");
   const retries = $("tune-retries");
+  const policy = $("tune-policy");
   if (!idle || !retries) return;
   idle.value = TUNING.idle_s > 0 ? TUNING.idle_s : 90;
   retries.value = TUNING.max_retries >= 0 ? TUNING.max_retries : 3;
+  if (policy) policy.value = TUNING.policy || "ask_user";
 }
 
 function bindTuningInputs() {
   const idle = $("tune-idle");
   const retries = $("tune-retries");
+  const policy = $("tune-policy");
   if (idle) idle.addEventListener("change", () => {
     TUNING.idle_s = Math.max(10, Math.min(3600, Number(idle.value) || 90));
     idle.value = TUNING.idle_s;
+    saveTuning();
+  });
+  if (policy) policy.addEventListener("change", () => {
+    TUNING.policy = policy.value;
     saveTuning();
   });
   if (retries) retries.addEventListener("change", () => {
@@ -1421,32 +1747,49 @@ function bindTuningInputs() {
 }
 
 function bindBoot() {
-  $("btn-home").addEventListener("click", () => { if (SESSION_ID) closeAsk(); showView("new"); });
-  $("btn-back").addEventListener("click", () => { closeAsk(); showView("new"); });
-  $("theme-select").addEventListener("change", () => {
-    if ($("theme-select").value === "__custom__") return;
-    applyBuiltin($("theme-select").value);
+  // 入口页是家：「返回」回那里（品牌名已从导航栏去掉）。入口三张卡片由同一份
+  // 委托接管（点击 + 回车/空格）。
+  $("btn-back").addEventListener("click", () => { closeAsk(); showView("home"); });
+  document.querySelectorAll(".nav-card[data-goto]").forEach((card) => {
+    const go = () => { closeAsk(); showView(card.dataset.goto); };
+    card.addEventListener("click", go);
+    card.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" || event.key === " ") { event.preventDefault(); go(); }
+    });
   });
-  $("btn-export-theme").addEventListener("click", exportCurrentTheme);
-  $("btn-import-theme").addEventListener("click", () => $("theme-file").click());
-  $("theme-file").addEventListener("change", () => {
-    if ($("theme-file").files.length) importThemeFile($("theme-file").files[0]);
+  // 点面板以外就收起；但要点开的那个（或正在用的那个）面板保留
+  document.addEventListener("click", (event) => {
+    if (!(event.target instanceof Element)) return;
+    const keep = event.target.closest(".mp-wrap");
+    document.querySelectorAll(".mp-panel").forEach((node) => {
+      if (!keep || !keep.contains(node)) node.classList.add("hidden");
+    });
   });
+  // 明暗：右上角太阳/月亮分段开关；高对比仍走设置页
+  $("theme-light").addEventListener("click", () => applyBuiltin("light"));
+  $("theme-dark").addEventListener("click", () => applyBuiltin("dark"));
+  // 语言：右上角 中文/EN 分段开关
+  syncLangSeg();
+  document.querySelectorAll("#lang-seg .seg-btn").forEach((btn) => {
+    btn.addEventListener("click", () => switchLang(btn.dataset.lang));
+  });
+  // 明暗切换在顶栏的太阳/月亮按钮；主题下拉与导入导出已随外观分组移除
   $("files").addEventListener("change", () => renderFileList([...$("files").files]));
   $("new-form").addEventListener("submit", submitNewSession);
   $("btn-start").disabled = false;
 
-  // Settings panel: cursor effect / theme / language / keys
-  $("btn-settings").addEventListener("click", openKeys);
-  $("settings-overlay").addEventListener("click", (event) => {
-    if (event.target === $("settings-overlay")) $("settings-overlay").classList.add("hidden");
-  });
+  // Settings is now a page of its own (entered from the hub), not an overlay.
   $("fx-toggle").addEventListener("change", () => {
     localStorage.setItem("council:fx", $("fx-toggle").checked ? "on" : "off");
     applyFxSetting();
   });
-  $("lang-select").value = LANG;
-  $("lang-select").addEventListener("change", () => switchLang($("lang-select").value));
+
+  // 导出格式：设置里的偏好，会议页只读反映（不再在会话页切换）
+  $("raw-toggle").addEventListener("change", () => {
+    EXPORT_RAW = $("raw-toggle").checked;
+    saveExportRaw();
+    applyExportRaw();
+  });
 
   // Keys section (lives inside settings)
   $("btn-keys-custom").addEventListener("click", addCustomKey);
@@ -1455,7 +1798,10 @@ function bindBoot() {
   });
 
   $("btn-diagnostics").addEventListener("click", runDiagnostics);
+  $("updates-toggle").addEventListener("change", (event) => toggleUpdates(event.target.checked));
+  $("btn-updates-refresh").addEventListener("click", refreshUpdates);
 
+  bindSearch();
   bindActions();
 }
 
@@ -1464,34 +1810,22 @@ async function boot() {
   bindBoot();
   bindHelpTips();
   applyFxSetting();
+  applyExportRaw();
   bindTuningInputs();
   renderTuningInputs();
   await loadLocale(LANG);
   await fetchThemes();
-  // Re-apply the persisted theme label once builtins are loaded.
-  const saved = currentTheme;
-  if (saved && saved.id) {
-    const select = $("theme-select");
-    const match = builtinThemes.find((item) => item.id === saved.id);
-    if (match) select.value = match.id;
-    else select.value = "__custom__";
-  }
   try {
     META = await api("/api/meta");
     try { MODELS = await api("/api/models"); } catch (_) { MODELS = null; }
     renderRoster();
     renderRosterEditor();
     renderConfigWarnings();
-    const select = $("policy-select");
-    ["continue", "pause", "ask_user"].forEach((value) => {
-      const option = h("option");
-      option.value = value;
-      text(option, t("ask.policy." + value));
-      select.appendChild(option);
-    });
+    renderPolicyOptions();
   } catch (_) { /* meta unavailable */ }
-  refreshList();
-  showView("new");
+  // No refreshList() here: showView("history") already refreshes it, and both
+  // calling it issued the same GET twice on every page load.
+  showView("home");
 }
 
 document.addEventListener("DOMContentLoaded", boot);

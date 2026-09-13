@@ -38,7 +38,7 @@ from council.adapters.google_api import GoogleAdapter  # noqa: E402
 from council.adapters.openai_api import OpenAIAdapter  # noqa: E402
 from council.core.config import NodeSection  # noqa: E402
 from council.core.contracts import ChatMessage, ChatRequest, ResponseFormat, Role  # noqa: E402
-from council.registry import get_registry  # noqa: E402
+from council.registry import Registry  # noqa: E402
 
 
 def _request(model_id: str, thinking: str | None) -> ChatRequest:
@@ -60,9 +60,12 @@ def _openai_node(provider_id: str, model_id: str, thinking: str | None = None) -
     return NodeSection(id="chk", adapter=provider_id, model=model_id, thinking=thinking)
 
 
+CURATED = Registry.load(include_discovered=False)
+
+
 def check_model(provider_id: str, model_id: str) -> list[str]:
     issues: list[str] = []
-    registry = get_registry()
+    registry = CURATED
     model = registry.model(model_id)
     if model is None:
         return ["模型不在注册表"]
@@ -154,7 +157,7 @@ def check_cli_profiles() -> list[str]:
 
 
 def main() -> int:
-    registry = get_registry(reload=True)
+    registry = CURATED
     total = 0
     failures = 0
     print(f"{'厂商':<14}{'模型':<36}结果")

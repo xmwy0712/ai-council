@@ -2,9 +2,24 @@
 
 Models and thinking levels live in TOML, never in business logic. Built-in
 files ship in ``council/registry/*.toml``; users drop additional or overriding
-files in ``<data_dir>/registry/*.toml`` — a user file with the same provider id
-merges over the built-in one, and a model with the same id replaces the
-built-in entry.
+files in ``<data_dir>/registry/*.toml``.
+
+Three layers, and the precedence is deliberate:
+
+1. built-in (``council/registry/*.toml``) — the curated, doc-verified baseline
+2. user (``<data_dir>/registry/*.toml``) — a same-named file merges over the
+   built-in one, a same-id model replaces the built-in entry
+3. discovered (``<data_dir>/registry/discovered/*.toml``) — written by
+   :mod:`council.registry.discovery`. These only ever *fill gaps*: an id that
+   already exists in layer 1 or 2 is ignored.
+
+Layer 3 losing to layer 2 and layer 1 is the whole point. Discovery knows
+nothing but model ids and a few numbers; the built-ins carry verified thinking
+protocols, and a wrong one is a hard 400. If discovery could win, a file
+written months ago would silently strip the capabilities of a model the
+registry has since learned about properly. Making it structural rather than
+"we re-filter on write" means a stale overlay cannot shadow curated data even
+if it is never rewritten again.
 
 Two things are deliberately *not* here: CLI read-only flags (those are safety
 code, not user-editable data) and prices (they change weekly and we will not
@@ -15,6 +30,8 @@ values, see docs/PROVIDERS.md).
 from __future__ import annotations
 
 import tomllib
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from importlib.resources import files
 from pathlib import Path
@@ -24,6 +41,7 @@ from typing import Any, Final, TypeAlias
 from ..core.paths import data_dir
 
 __all__ = [
+    "AUTO_DIR_NAME",
     "ModelSpec",
     "ProviderSpec",
     "Registry",
@@ -32,7 +50,15 @@ __all__ = [
     "ThinkingSpec",
     "ThinkingTranslation",
     "get_registry",
+    "registry_at",
+    "registry_root",
+    "use_registry_root",
 ]
+
+#: Sub-directory of the user registry that auto-discovery owns. Kept separate
+#: from hand-written files so that layer 3 can never outrank layer 2.
+AUTO_DIR_NAME: Final = "discovered"
+
 
 _KNOWN_THINKING_STYLES: Final = frozenset(
     {"enum_effort", "budget_tokens", "thinking_budget", "thinking_level", "none"}
@@ -85,6 +111,9 @@ class ModelSpec:
     source: str = ""
     # 推理模型（GPT-5.6/6 等）不接受 temperature 参数
     omit_temperature: bool = False
+    #: Written by online discovery. The UI keeps these in a separate group so
+    #: an auto-found id never masquerades as a curated one.
+    discovered: bool = False
 
 
 @dataclass(frozen=True)
@@ -167,6 +196,7 @@ def _model_from(raw: dict[str, Any], provider: str) -> ModelSpec:
         verified=str(raw.get("verified", "")),
         source=str(raw.get("source", "")),
         omit_temperature=bool(raw.get("omit_temperature", False)),
+        discovered=bool(raw.get("discovered", False)),
     )
 
 
@@ -207,19 +237,29 @@ class Registry:
     # --------------------------------------------------------------- loading
 
     @classmethod
-    def load(cls, user_dir: Path | None = None) -> Registry:
+    def load(cls, user_dir: Path | None = None, *, include_discovered: bool = True) -> Registry:
+        """Build the registry. ``include_discovered=False`` yields the curated
+        baseline only — which is what discovery needs in order to tell "new to
+        the user" apart from "new to the world"."""
+        # Accumulate by *declared provider id*, not by filename: two files that
+        # name the same provider must layer onto each other. Keying by filename
+        # meant a stray ``my-openai.toml`` replaced the entire provider — every
+        # curated model and every discovered id gone — instead of merging.
         merged: dict[str, dict[str, Any]] = {}
+        origins: dict[str, str] = {}
         for name, data in cls._load_dir(None):
-            merged[name] = data
+            _accumulate(merged, origins, data, name, _deep_merge)
         extra = user_dir if user_dir is not None else data_dir() / "registry"
         for name, data in cls._load_dir(extra):
-            if name in merged:
-                merged[name] = _deep_merge(merged[name], data)
-            else:
-                merged[name] = data
+            _accumulate(merged, origins, data, name, _deep_merge)
+        # Layer 3: auto-discovered ids, gap-filling only. `_load_dir` globs
+        # ``*.toml``, so the sub-directory is naturally invisible to layer 2.
+        if include_discovered:
+            for name, data in cls._load_dir(extra / AUTO_DIR_NAME):
+                _accumulate(merged, origins, data, name, _merge_missing)
         providers: dict[str, ProviderSpec] = {}
-        for name, data in merged.items():
-            spec = _provider_from(data, origin=name)
+        for key, data in merged.items():
+            spec = _provider_from(data, origin=origins[key])
             providers[spec.id] = spec
         return cls(providers)
 
@@ -228,7 +268,8 @@ class Registry:
         out: list[tuple[str, dict[str, Any]]] = []
         if root is None:
             package = files("council.registry")
-            for item in sorted(package.iterdir()):
+            # `Traversable` is not orderable, so sort by name explicitly.
+            for item in sorted(package.iterdir(), key=lambda entry: entry.name):
                 if item.name.endswith(".toml"):
                     out.append((item.name, tomllib.loads(item.read_text(encoding="utf-8"))))
             return out
@@ -330,11 +371,110 @@ def _deep_merge(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any
     return out
 
 
-_registry: Registry | None = None
+def _declared_id(data: dict[str, Any]) -> str:
+    meta = data.get("provider")
+    if isinstance(meta, dict) and meta.get("id"):
+        return str(meta["id"])
+    return ""
+
+
+def _accumulate(
+    target: dict[str, dict[str, Any]],
+    origins: dict[str, str],
+    data: dict[str, Any],
+    name: str,
+    merge: Callable[[dict[str, Any], dict[str, Any]], dict[str, Any]],
+) -> None:
+    """Fold one file into the running picture, grouped by declared provider id.
+
+    A file that declares no ``[provider] id`` keeps its filename as the key so
+    that :func:`_provider_from` still gets to raise the readable error, instead
+    of the file quietly disappearing.
+    """
+    provider_id = _declared_id(data)
+    key = provider_id or name
+    if key in target:
+        target[key] = merge(target[key], data)
+    else:
+        target[key] = data
+        origins[key] = name
+
+
+def _merge_missing(base: dict[str, Any], extra: dict[str, Any]) -> dict[str, Any]:
+    """Supply only what ``base`` lacks. Auto-discovery never outranks curation.
+
+    Provider-level scalars are filled in only when absent; ``models`` entries
+    are appended only for ids that do not already exist. Anything already
+    curated wins unconditionally — that is the guarantee that makes a stale
+    overlay harmless.
+    """
+    out = dict(base)
+    models = list(out.get("models") or [])
+    known = {entry.get("id") for entry in models if isinstance(entry, dict)}
+    for entry in extra.get("models") or []:
+        if isinstance(entry, dict) and entry.get("id") not in known:
+            models.append(entry)
+            known.add(entry.get("id"))
+    if models:
+        out["models"] = models
+    for key, value in extra.items():
+        if key == "models":
+            continue
+        if key == "provider" and isinstance(value, dict):
+            base_meta = out.get("provider")
+            if not isinstance(base_meta, dict):
+                out["provider"] = dict(value)
+            else:
+                merged_meta = dict(base_meta)
+                for meta_key, meta_value in value.items():
+                    merged_meta.setdefault(meta_key, meta_value)
+                out["provider"] = merged_meta
+        elif key not in out:
+            out[key] = value
+    return out
+
+
+_registry_cache: dict[Path, Registry] = {}
+#: Set when the data directory is overridden (`--data-dir`). The config, the
+#: session store and the discovered overlays all move together; the registry has
+#: to move with them, or an overlay ends up written somewhere nothing reads.
+_root_override: Path | None = None
+
+
+def registry_root() -> Path:
+    """Where the process-wide registry is read from right now."""
+    return _root_override if _root_override is not None else data_dir() / "registry"
+
+
+def use_registry_root(root: Path | None) -> None:
+    """Pin the process-wide registry to ``root`` (``None`` restores the default)."""
+    global _root_override
+    _root_override = root
+
+
+@contextmanager
+def registry_at(root: Path | None) -> Iterator[None]:
+    """Scoped :func:`use_registry_root`, for the web app's lifetime.
+
+    Scoped rather than plain-set on purpose: a test suite that starts several
+    servers must not leave the last one's data directory pinned for the next.
+    """
+    global _root_override
+    previous = _root_override
+    _root_override = root
+    try:
+        yield
+    finally:
+        _root_override = previous
 
 
 def get_registry(*, reload: bool = False) -> Registry:
-    global _registry
-    if _registry is None or reload:
-        _registry = Registry.load()
-    return _registry
+    """The cached registry for the current root.
+
+    Keyed by root rather than held in a single slot, so switching data
+    directories does not throw away the other root's parse.
+    """
+    root = registry_root()
+    if reload or root not in _registry_cache:
+        _registry_cache[root] = Registry.load(root)
+    return _registry_cache[root]

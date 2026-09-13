@@ -17,6 +17,7 @@ import asyncio
 import contextlib
 from collections.abc import Callable
 from contextlib import asynccontextmanager
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, cast
 
@@ -27,17 +28,17 @@ from pydantic import BaseModel, Field
 
 from .. import __version__
 from ..adapters import build_adapters
+from ..adapters.scan import provider_available, scan_model
 from ..core import secrets
-from ..registry import cli_diagnostics
-from ..core.secrets import SecretError
-from ..core.config import Config, NodeRole
+from ..core.config import Config, FailurePolicy, NodeRole
 from ..core.contracts import Adapter
 from ..core.ids import new_session_id
 from ..core.paths import sessions_db
+from ..core.secrets import SecretError
 from ..core.state import replay
 from ..core.store import EventStore
 from ..export import render_markdown
-from ..registry import get_registry
+from ..registry import cli_diagnostics, discovery, get_registry, registry_at
 from .sessionhub import HubError, SessionManager, UploadRejected
 
 __all__ = ["create_app"]
@@ -83,11 +84,16 @@ class _NodeOverride(BaseModel):
 
 
 class _RunTuning(BaseModel):
-    """运行参数调优：卡死判定超时与重试次数，随会话提交并写入 effective config。"""
+    """运行参数调优：卡死判定超时、重试次数与失败策略，随会话提交并写入 effective config。
+
+    ``policy`` 只作用于**新开的会谈**：设置里的策略是新建会话时的默认值，
+    已开始的会话沿用创建时的策略，不在运行中途被设置页改动影响。
+    """
 
     idle_s: float | None = Field(default=None, gt=0, le=3600)
     total_s: float | None = Field(default=None, gt=0, le=7200)
     max_retries: int | None = Field(default=None, ge=0, le=10)
+    policy: str | None = Field(default=None)
 
 
 class _NewSession(BaseModel):
@@ -107,8 +113,34 @@ class _KeyBody(BaseModel):
     value: str = Field(min_length=1, max_length=4096)
 
 
+class _ToggleBody(BaseModel):
+    enabled: bool
+
+
 def _missing(session_id: str) -> HTTPException:
     return HTTPException(status_code=404, detail=f"找不到会话 {session_id}")
+
+
+def _discovery_options(cfg: Config) -> discovery.DiscoveryOptions:
+    section = cfg.updates
+    return discovery.DiscoveryOptions(
+        exclude_patterns=tuple(section.exclude_patterns),
+        catalog_url=section.catalog_url or discovery.DEFAULT_CATALOG_URL,
+        timeout_s=section.timeout_s,
+    )
+
+
+def _updates_enabled(cfg: Config, state: dict[str, Any]) -> bool:
+    """The panel's toggle outranks the config default.
+
+    A user who only ever touches the web UI has no ``config.toml`` to edit, and
+    they are exactly the audience this feature exists for — so their choice,
+    recorded in the data dir, wins over the shipped default.
+    """
+    override = state.get("enabled")
+    if isinstance(override, bool):
+        return override
+    return cfg.updates.enabled
 
 
 def _manager(request: Request) -> SessionManager:
@@ -124,31 +156,53 @@ def create_app(
     config: Config | None = None,
     adapter_builder: AdapterBuilder = build_adapters,
     resume_timeout_s: float = 0.0,
+    discovery_transport: Any = None,
 ) -> FastAPI:
     """Build the app. ``resume_timeout_s`` defaults to 0 → the hub's own
-    generous in-process value is used (test doubles may pass a small one)."""
+    generous in-process value is used (test doubles may pass a small one).
+
+    ``discovery_transport`` lets tests drive the model-discovery path through
+    ``httpx.MockTransport`` so the suite stays fully offline.
+    """
     from .sessionhub import _RESUME_TIMEOUT_S
 
     effective_timeout = resume_timeout_s or _RESUME_TIMEOUT_S
+    update_lock = asyncio.Lock()
+    startup_task: asyncio.Task[None] | None = None
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> Any:
-        store = await EventStore(sessions_db(data_dir)).open()
-        app.state.store = store
-        manager = SessionManager(
-            store=store,
-            config=config if config is not None else manager_default_config(),
-            data_dir=data_dir,
-            adapter_builder=adapter_builder,
-            resume_timeout_s=effective_timeout,
-        )
-        app.state.manager = manager
-        try:
-            yield
-        finally:
-            for session_id in list(manager._hubs):
-                await manager.drop(session_id)
-            await store.close()
+        nonlocal startup_task
+        # Pin the registry to *this* app's data directory for the server's whole
+        # lifetime. Without it, `council serve --data-dir X` would read config
+        # and sessions from X while the registry — and therefore the adapters
+        # and the model picker — still came from the default directory, so a
+        # discovered overlay would be written into X and never read back.
+        with registry_at(data_dir / "registry"):
+            store = await EventStore(sessions_db(data_dir)).open()
+            app.state.store = store
+            manager = SessionManager(
+                store=store,
+                config=config if config is not None else manager_default_config(),
+                data_dir=data_dir,
+                adapter_builder=adapter_builder,
+                resume_timeout_s=effective_timeout,
+            )
+            app.state.manager = manager
+            if _due_for_check(manager.config):
+                # Background: a slow or unreachable vendor must never delay the
+                # server coming up. Cancelled on shutdown.
+                startup_task = asyncio.create_task(_refresh_quietly("startup"))
+            try:
+                yield
+            finally:
+                if startup_task is not None and not startup_task.done():
+                    startup_task.cancel()
+                    with contextlib.suppress(asyncio.CancelledError):
+                        await startup_task
+                for session_id in list(manager._hubs):
+                    await manager.drop(session_id)
+                await store.close()
 
     def manager_default_config() -> Config:
         from ..core.config import default_config, load_config
@@ -158,6 +212,78 @@ def create_app(
         if candidate.is_file():
             return load_config(candidate)
         return default_config()
+
+    # -------------------------------------------------------- model discovery
+
+    def _config_now() -> Config:
+        manager: SessionManager | None = getattr(app.state, "manager", None)
+        if manager is not None:
+            return manager.config
+        return config if config is not None else manager_default_config()
+
+    def _due_for_check(cfg: Config) -> bool:
+        """Enabled, asked to check on start, and not checked recently."""
+        if not cfg.updates.check_on_start:
+            return False
+        state = discovery.load_state(data_dir)
+        if not _updates_enabled(cfg, state):
+            return False
+        last = state.get("last_check_at")
+        if not isinstance(last, str) or not last:
+            return True
+        try:
+            previous = datetime.fromisoformat(last)
+        except ValueError:
+            return True
+        if previous.tzinfo is None:
+            previous = previous.replace(tzinfo=UTC)
+        age_h = (datetime.now(UTC) - previous).total_seconds() / 3600
+        return age_h >= cfg.updates.min_interval_h
+
+    async def _discover_once(reason: str) -> None:
+        cfg = _config_now()
+        report = await asyncio.to_thread(
+            discovery.discover,
+            data=data_dir,
+            options=_discovery_options(cfg),
+            env_file=data_dir / ".env",
+            transport=discovery_transport,
+        )
+        # The picker reads the process-wide cache, so without this reload a
+        # fresh overlay would not show up until the next restart.
+        get_registry(reload=True)
+        state = discovery.load_state(data_dir)
+        state["reason"] = reason
+        state["last_check_at"] = report.checked_at
+        state["last_error"] = ""
+        state["report"] = report.to_json()
+        discovery.save_state(state, data_dir)
+
+    async def _run_discovery(reason: str) -> dict[str, Any]:
+        """Sweep once, and share the result with anyone already waiting.
+
+        Pressing "check now" while the start-up check is still running is a
+        perfectly reasonable thing to do, so it waits for that answer instead of
+        erroring out or firing a second round of vendor requests. The probes are
+        blocking HTTP, hence the worker thread.
+        """
+        already_running = update_lock.locked()
+        async with update_lock:
+            if not already_running:
+                await _discover_once(reason)
+        return discovery.load_state(data_dir)
+
+    async def _refresh_quietly(reason: str) -> None:
+        """Start-up path: never let a vendor outage become a server error."""
+        try:
+            await _run_discovery(reason)
+        except asyncio.CancelledError:
+            raise
+        except Exception as err:  # recorded, never fatal
+            with contextlib.suppress(OSError):
+                state = discovery.load_state(data_dir)
+                state["last_error"] = f"{type(err).__name__}: {err}"[:300]
+                discovery.save_state(state, data_dir)
 
     app = FastAPI(
         title="AI Council",
@@ -213,31 +339,96 @@ def create_app(
         """三大本地 CLI（codex / claude / agy）的环境检查：安装、版本、鉴权。"""
         return {"clis": await cli_diagnostics.check_all()}
 
+    # ------------------------------------------------------- model list updates
+
+    def _updates_payload() -> dict[str, Any]:
+        cfg = _config_now()
+        state = discovery.load_state(data_dir)
+        report = state.get("report")
+        return {
+            "enabled": _updates_enabled(cfg, state),
+            "config_enabled": cfg.updates.enabled,
+            "min_interval_h": cfg.updates.min_interval_h,
+            "last_check_at": state.get("last_check_at") or "",
+            "last_error": state.get("last_error") or "",
+            "report": report if isinstance(report, dict) else None,
+            "overlay_dir": str(discovery.overlay_dir(data_dir)),
+        }
+
+    @app.get("/api/updates")
+    async def updates_status() -> dict[str, Any]:
+        """模型清单更新的状态：开关、上次检查时间与上次结果。"""
+        return _updates_payload()
+
+    @app.post("/api/updates/enabled")
+    async def updates_set_enabled(body: _ToggleBody) -> dict[str, Any]:
+        """界面开关。写数据目录，不碰用户的 config.toml。"""
+        state = discovery.load_state(data_dir)
+        state["enabled"] = body.enabled
+        discovery.save_state(state, data_dir)
+        return _updates_payload()
+
+    @app.post("/api/updates/refresh")
+    async def updates_refresh() -> dict[str, Any]:
+        """立即联网刷新一次。未开启时明确拒绝，而不是偷偷联网。"""
+        if not _updates_enabled(_config_now(), discovery.load_state(data_dir)):
+            raise HTTPException(status_code=409, detail="模型清单更新未开启")
+        try:
+            await _run_discovery("manual")
+        except Exception as err:  # surfaced to the UI, not a 500
+            raise HTTPException(
+                status_code=502, detail=f"更新失败：{type(err).__name__}: {err}"[:300]
+            ) from err
+        return _updates_payload()
+
     @app.get("/api/models")
     async def models_catalog() -> dict[str, Any]:
-        """注册表目录：按厂商分组，供网页端阵容编辑器的下拉框使用。"""
+        """注册表目录，供网页端阵容编辑器的下拉框使用。
+
+        只推荐**此刻真的能用**的模型，两道门槛：
+        1. 厂商密钥要解析得到（本地/免密端点除外），本地 CLI 要已安装；
+        2. 上次联网探测若是**失败**告终（连不上、被拒绝），这家也不推荐——
+           探测失败比"有密钥"是更强的证据，修好后点一次「立即检查」即可恢复。
+        每个给出的模型还要能离线构造出一次合法调用负载。
+        """
         registry = get_registry()
+        env_file = data_dir / ".env"
+        # 上次探测结果：error = 那一次都连不上/被拒，比"有密钥"更有说服力
+        report = discovery.load_state(data_dir).get("report") or {}
+        probed_failed = {
+            (p.get("provider") or "")
+            for p in (report.get("providers") or [])
+            if p.get("status") == "error"
+        }
         providers = []
         for pid in sorted(registry.providers):
             provider = registry.providers[pid]
+            available = provider_available(provider, env_file=env_file) and pid not in probed_failed
+            models = []
+            for m in provider.models.values():
+                usable = available and not scan_model(registry, pid, m.id)
+                models.append(
+                    {
+                        "id": m.id,
+                        "display": m.display or m.id,
+                        "thinking": m.thinking,
+                        "thinking_levels": (
+                            sorted(registry.thinking_spec(provider.id, m.id).levels)
+                            if m.thinking
+                            else []
+                        ),
+                        # 自动发现的条目在前端单独成组，绝不与已策展条目混淆。
+                        "discovered": m.discovered,
+                        "usable": usable,
+                    }
+                )
             providers.append(
                 {
                     "id": provider.id,
                     "display": provider.display,
                     "secret_required": provider.secret_required,
-                    "models": [
-                        {
-                            "id": m.id,
-                            "display": m.display or m.id,
-                            "thinking": m.thinking,
-                            "thinking_levels": (
-                                sorted(registry.thinking_spec(provider.id, m.id).levels)
-                                if m.thinking
-                                else []
-                            ),
-                        }
-                        for m in provider.models.values()
-                    ],
+                    "available": available,
+                    "models": models,
                 }
             )
         return {"providers": providers}
@@ -315,8 +506,7 @@ def create_app(
         picked_any = any(
             o.model
             for o in overrides
-            if (n := by_id.get(o.node_id)) is not None
-            and n.role is NodeRole.PARTICIPANT
+            if (n := by_id.get(o.node_id)) is not None and n.role is NodeRole.PARTICIPANT
         )
         if picked_any:
             for node in effective.nodes:
@@ -334,7 +524,7 @@ def create_app(
                 # 「active_nodes ≠ 参与者数量」在存储读回时校验失败。
                 effective.failure.min_quorum = min(effective.failure.min_quorum, len(live))
                 effective.council.active_nodes = len(live)
-        # 运行参数调优：覆盖全局 idle_s / total_s / max_retries
+        # 运行参数调优：覆盖全局 idle_s / total_s / max_retries / failure policy
         if tuning:
             if tuning.idle_s is not None:
                 effective.timeout.idle_s = tuning.idle_s
@@ -342,6 +532,11 @@ def create_app(
                 effective.timeout.total_s = tuning.total_s
             if tuning.max_retries is not None:
                 effective.failure.max_retries = tuning.max_retries
+            if tuning.policy is not None:
+                try:
+                    effective.failure.policy = FailurePolicy(tuning.policy)
+                except ValueError as err:
+                    raise HubError(f"未知的失败策略：{tuning.policy}") from err
         return effective
 
     # --------------------------------------------------------------- sessions
@@ -351,8 +546,10 @@ def create_app(
         manager = _manager(request)
         session_id = new_session_id()
         uploads = [(f.name, f.content) for f in body.files]
-        effective = _apply_overrides(manager.config, body.overrides, tuning=body.tuning)
         try:
+            # 放在 try 内：参数覆盖的校验失败（未知模型 / 未知策略）应回 4xx，
+            # 而不是冒到外面变成 500
+            effective = _apply_overrides(manager.config, body.overrides, tuning=body.tuning)
             await manager.start_new(session_id, body.question, uploads, config=effective)
         except UploadRejected as err:
             raise HTTPException(status_code=400, detail=str(err)) from None
@@ -378,9 +575,7 @@ def create_app(
         return {"session_id": session_id}
 
     @app.get("/api/sessions")
-    async def list_sessions(
-        request: Request, limit: int = 50
-    ) -> dict[str, Any]:
+    async def list_sessions(request: Request, limit: int = 50) -> dict[str, Any]:
         return {"sessions": await _manager(request).list_sessions(limit=min(limit, 200))}
 
     @app.get("/api/sessions/{session_id}")
@@ -405,10 +600,8 @@ def create_app(
         manager = _manager(request)
         # 运行中的会话先终止并卸载，再抹掉存储
         if (hub := manager.hub(session_id)) is not None:
-            try:
+            with contextlib.suppress(HubError):
                 hub.stop()
-            except HubError:
-                pass
             await manager.drop(session_id)
         deleted = await manager.store.delete_session(session_id)
         if not deleted:
@@ -453,9 +646,7 @@ def create_app(
         return {"ok": True}
 
     @app.get("/api/sessions/{session_id}/export")
-    async def export_session(
-        session_id: str, request: Request, raw: bool = False
-    ) -> Response:
+    async def export_session(session_id: str, request: Request, raw: bool = False) -> Response:
         manager = _manager(request)
         meta = await manager.store.get_session(session_id)
         if meta is None:
@@ -477,13 +668,10 @@ def create_app(
         manager = _manager(request)
         env_file = manager._data_dir / ".env"
         statuses = {
-            name: secrets.secret_status(name, env_file=env_file)
-            for name, _ in PRESET_SECRETS
+            name: secrets.secret_status(name, env_file=env_file) for name, _ in PRESET_SECRETS
         }
         return {
-            "presets": [
-                {"name": name, "label": label_key} for name, label_key in PRESET_SECRETS
-            ],
+            "presets": [{"name": name, "label": label_key} for name, label_key in PRESET_SECRETS],
             "statuses": statuses,
         }
 

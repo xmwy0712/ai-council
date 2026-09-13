@@ -82,6 +82,21 @@ def _registry_warnings(config: Config) -> list[str]:
         return [f"注册表加载失败：{err}"]
 
 
+def _use_data(data_dir_: Path | None) -> Path:
+    """Resolve the data directory and aim the registry at the same place.
+
+    ``--data-dir X`` moves the config and the session store to X, so it has to
+    move the registry too. Otherwise the adapters and the roster editor would
+    consult the default directory while an auto-discovered overlay was being
+    written into X — a model the user can see in the report but never select.
+    """
+    from ..registry import use_registry_root
+
+    data = Path(data_dir_) if data_dir_ else data_dir()
+    use_registry_root(data / "registry")
+    return data
+
+
 def _resolve_config(path: Path | None, data: Path) -> tuple[Config, str]:
     candidate = Path(path) if path else config_path(data)
     if candidate.is_file():
@@ -261,7 +276,7 @@ def run(
     verbose: bool = typer.Option(False, "--verbose", "-v", help="实时打印模型输出流"),
 ) -> None:
     """开一场新的会谈。"""
-    data = Path(data_dir_) if data_dir_ else data_dir()
+    data = _use_data(data_dir_)
     cfg, source = _resolve_config(config, data)
     session_id = session or new_session_id()
 
@@ -300,7 +315,7 @@ def resume(
     verbose: bool = typer.Option(False, "--verbose", "-v", help="实时打印模型输出流"),
 ) -> None:
     """从断点继续：已完成的结果一律复用，只重发中断或失败的调用。"""
-    data = Path(data_dir_) if data_dir_ else data_dir()
+    data = _use_data(data_dir_)
     cfg, _ = _resolve_config(config, data)
     try:
         state = asyncio.run(_execute("", session_id, cfg, data, verbose, files=file))
@@ -321,7 +336,7 @@ def list_sessions(
     """列出可续跑的会话。"""
 
     async def _list() -> None:
-        data = Path(data_dir_) if data_dir_ else data_dir()
+        data = _use_data(data_dir_)
         store = await EventStore(sessions_db(data)).open()
         try:
             rows = await store.list_sessions(limit=limit)
@@ -349,7 +364,7 @@ def export(
     from ..export import export_markdown
 
     async def _run() -> None:
-        data = Path(data_dir_) if data_dir_ else data_dir()
+        data = _use_data(data_dir_)
         store = await EventStore(sessions_db(data)).open()
         try:
             meta = await store.get_session(session_id)
@@ -371,7 +386,7 @@ def config_check(
     data_dir_: Path | None = typer.Option(None, "--data-dir", help="应用数据目录"),
 ) -> None:
     """校验配置文件，输出人类可读的错误。"""
-    data = Path(data_dir_) if data_dir_ else data_dir()
+    data = _use_data(data_dir_)
     try:
         cfg, source = _resolve_config(config, data)
     except ConfigError as err:
@@ -394,7 +409,7 @@ def serve(
 
     from ..web.server import create_app
 
-    data = Path(data_dir_) if data_dir_ else data_dir()
+    data = _use_data(data_dir_)
     cfg, source = _resolve_config(config, data)
     typer.echo(f"配置来源：{source}")
     for warning in [*cfg.warnings(), *_registry_warnings(cfg)]:

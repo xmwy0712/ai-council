@@ -185,7 +185,7 @@ class _HubHandler:
                 timeout=self._select_timeout_s,
             )
             return str(answer.get("node_id") or "")
-        except asyncio.TimeoutError:
+        except TimeoutError:
             # 无人值守兜底（文档承诺：绝不因没人回答而挂死）：
             # 超时自动取首个候选，并把待答弹窗一并收掉。
             fallback = str(req.candidates[0]) if req.candidates else ""
@@ -300,9 +300,7 @@ class SessionHub:
 
     # --------------------------------------------------------------- running
 
-    async def start(
-        self, question: str, files: Sequence[str] | None = None
-    ) -> asyncio.Task[None]:
+    async def start(self, question: str, files: Sequence[str] | None = None) -> asyncio.Task[None]:
         if self.task is not None and not self.task.done():
             raise HubError(f"会话 {self.session_id} 正在运行中")
         self._staged_files = list(files or [])
@@ -330,9 +328,7 @@ class SessionHub:
         )
         return "old"
 
-    async def _run(
-        self, question: str, files: Sequence[str] | None
-    ) -> None:
+    async def _run(self, question: str, files: Sequence[str] | None) -> None:
         engine = self.engine
         assert engine is not None
         message: dict[str, Any] = {
@@ -350,7 +346,7 @@ class SessionHub:
             message["status"] = "cancelled"
             await self._publish(message)
             raise
-        except Exception as err:  # noqa: BLE001 - surface to the UI, keep serving
+        except Exception as err:  # surface to the UI, keep serving
             self.error = f"{type(err).__name__}: {err}"
             message["status"] = "error"
             message["reason"] = self.error
@@ -361,25 +357,19 @@ class SessionHub:
         # racing resume/stop on a completed session gets 409/200 wrongly.
         self.engine = None
         # Keep the cheap status column honest even for abnormal endings.
-        try:
+        with contextlib.suppress(Exception):
             await self._store.set_status(self.session_id, message["status"])
-        except Exception:  # noqa: BLE001 - best-effort bookkeeping
-            pass
         await self._publish(message)
         await self._drop_staged_files()
         self._auto_answer_all()
         for adapter in self._adapters.values():
-            try:
+            with contextlib.suppress(Exception):
                 await adapter.close()
-            except Exception:  # noqa: BLE001 - best-effort teardown
-                pass
 
     async def _drop_staged_files(self) -> None:
         for path in self._staged_files:
-            try:
+            with contextlib.suppress(OSError):
                 Path(path).unlink(missing_ok=True)
-            except OSError:
-                pass
         self._staged_files = []
 
     def pause(self) -> None:
@@ -517,10 +507,8 @@ class SessionManager:
 
     async def _drop_paths(self, paths: Sequence[str]) -> None:
         for path in paths:
-            try:
+            with contextlib.suppress(OSError):
                 Path(path).unlink(missing_ok=True)
-            except OSError:
-                pass
 
     async def drop(self, session_id: str) -> None:
         hub = self._hubs.pop(session_id, None)
@@ -568,9 +556,7 @@ class SessionManager:
                     "proposal": None,
                     "scores": [],
                     "participants": [node.id for node in hub._config.participants],
-                    "judge": (
-                        hub._config.judge_node.id if hub._config.judge_node else None
-                    ),
+                    "judge": (hub._config.judge_node.id if hub._config.judge_node else None),
                     "degraded": [],
                     "calls_done": 0,
                     "rounds": 0,
@@ -594,15 +580,22 @@ class SessionManager:
         if hub is not None and hub.error:
             digest["status"] = "error"
             digest["error"] = hub.error
-        elif hub is not None and hub.state is None and meta.status in (
-            "stopped",
-            "error",
-            "cancelled",
+        elif (
+            hub is not None
+            and hub.state is None
+            and meta.status
+            in (
+                "stopped",
+                "error",
+                "cancelled",
+            )
         ):
             digest["status"] = meta.status
         return digest
 
-    async def events(self, session_id: str, *, since: int = 0, limit: int = 500) -> list[dict[str, Any]]:
+    async def events(
+        self, session_id: str, *, since: int = 0, limit: int = 500
+    ) -> list[dict[str, Any]]:
         stored = await self._store.events(session_id)
         selected = [event_json(event) for event in stored if event.seq > since]
         if limit > 0:

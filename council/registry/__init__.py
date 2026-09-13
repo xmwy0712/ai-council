@@ -10,6 +10,9 @@ from .loader import (
     ThinkingSpec,
     ThinkingTranslation,
     get_registry,
+    registry_at,
+    registry_root,
+    use_registry_root,
 )
 
 __all__ = [
@@ -20,4 +23,7 @@ __all__ = [
     "ThinkingSpec",
     "ThinkingTranslation",
     "get_registry",
+    "registry_at",
+    "registry_root",
+    "use_registry_root",
 ]

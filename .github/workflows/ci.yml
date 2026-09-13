@@ -79,7 +79,7 @@ jobs:
               line for line in zipfile.ZipFile(wheel).read(meta).decode().splitlines()
               if line.startswith("Version:")
           )
-          assert "1.2.2" in version, version
+          assert "1.3.0" in version, version
           with tarfile.open(glob.glob("dist/*.tar.gz")[0]) as t:
               tops = {m.name.split("/", 1)[1].split("/", 1)[0]
                       for m in t.getmembers() if "/" in m.name}
@@ -91,7 +91,7 @@ jobs:
           uv venv /tmp/check
           uv pip install --python /tmp/check/bin/python dist/*.whl
           /tmp/check/bin/council run "CI wheel 冒烟" --data-dir /tmp/check-data > /dev/null
-          /tmp/check/bin/python -c "import council; assert council.__version__ == '1.2.2'"
+          /tmp/check/bin/python -c "import council; assert council.__version__ == '1.3.0'"
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:

@@ -5,6 +5,117 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.3.0] - 2026-09-12
+
+在线模型清单更新（含新发现模型的思考档位推断）；以及做这个功能时暴露出来的注册表缺陷与
+`CHANGELOG` 本身的一处错位。
+
+### Added
+
+- **在线模型清单更新（默认关闭）**：网页「设置 → 模型清单更新」一键开关。开启后向各
+  厂商**自己的**「列出模型」接口查询当前在役模型，把注册表里还没有的 id 写入
+  `<数据目录>/registry/discovered/<provider>.toml`。三条探测路径覆盖 13/14 家
+  （OpenAI 兼容 `GET {base_url}/models`、Anthropic `/v1/models`、Google
+  `v1beta/models`），`cli_session` 的订阅没有可查询接口，不更新。
+  启动时按 `min_interval_h`（默认 24h）节流检查；新增 `GET /api/updates`、
+  `POST /api/updates/enabled`、`POST /api/updates/refresh` 三个端点。
+  界面开关写数据目录的 `updates.json` 并优先于 `config.toml`——只用网页的用户没有
+  config.toml 可改，正是这个功能要服务的人。
+- **非对话模型过滤**：列模型接口会把 embedding / whisper / tts / 图像 / 审核 / 实时，
+  以及补全时代的遗留模型（`davinci-002`、`gpt-3.5-turbo-instruct`）与带日期的快照
+  （`gpt-4-0613`、`claude-3-5-sonnet-20241022`）一并倒出来。按内置规则剔除，并可用
+  `exclude_patterns` 追加；保留 `-preview` / `-vl` / `:free` 等可用名。结果按创建时间
+  倒序写入，新模型排在选取列表最前。
+- **自动发现条目单独成组**：`/api/models` 与 `ModelSpec` 新增 `discovered` 标记，
+  阵容编辑器把它们放在「厂商（自动发现）」分组里，不与已策展条目混淆。
+- **新发现模型带出思考档位**：新模型不给档位等于半个残废，但猜错协议是硬 400，所以规则是
+  「**每模型信号**决定是否声明，**注册表已声明的旋钮**决定怎么发」。
+  - Anthropic `/v1/models` 的 `capabilities.effort` 是厂商直接报出档位真值 → 得到
+    `enum_effort` / `param = "effort"` 与确切档位；仅有 `thinking.supported` 时退回继承
+    provider 的 `budget_tokens`。
+  - Google 只给 `Model.thinking` 布尔值 → 旋钮取自**同代际**已策展兄弟（Gemini 3+ 用
+    `thinkingLevel`，2.5 用 `thinkingBudget`，混用即 400）；没有同代际兄弟则不声明。
+  - OpenAI 兼容各家：公开目录 `supported_parameters` 含 `reasoning` / `reasoning_effort`
+    作为信号，旋钮取 provider 块或兄弟一致的声明。
+  - 档位名只接受 `none`/`minimal`/`low`/`medium`/`high`/`xhigh`/`max`，表外名字一律丢弃。
+  - **凑不出非空档位表就拒绝声明**（`thinking = false`），模型仍可选。刚发布、公开目录
+    尚未收录的模型（实测如 OpenAI `gpt-live-1`）会走这条路径——这是设计而非缺陷。
+- `ThinkingPlan` 与 `CatalogEntry` 两个数据类型；报告与 `/api/models` 均带出档位信息。
+
+### Changed
+
+- **注册表变为三层，优先级写进加载顺序**：内置 `council/registry/*.toml` > 用户手写
+  `<数据目录>/registry/*.toml` > 自动发现 `<数据目录>/registry/discovered/*.toml`，
+  最后者**只补缺失 id**，永不覆盖。这是本次最重要的设计取舍：若让自动发现能覆盖，
+  一份几个月前写下的文件会静默抹掉注册表后来才核实清楚的思考协议，而错误的思考参数
+  是硬 400。做成结构性顺序而非「写入时过滤一遍」，意味着陈旧文件在结构上就不可能遮蔽
+  策展数据。新增 `Registry.load(include_discovered=False)` 供发现流程取「已策展基线」。
+- **新增 `[updates]` 配置段**：`enabled`（默认 false）· `check_on_start` ·
+  `min_interval_h` · `catalog_url` · `timeout_s` · `exclude_patterns`。
+- **`fingerprint()` 排除 `[updates]`**：刷新模型清单不改变会话如何审议，纳入它会让每个
+  暂停中的会话在升级后都误报「配置已变」。
+- **`ruff` / `mypy` 覆盖面修正**：`council/registry` 纳入 `mypy --strict`（33 个源文件）。
+  `pyproject.toml` 的 `extend-exclude` 原先含裸 `"web"`，而该选项匹配任意层级的同名
+  目录——`council/web`（FastAPI 应用所在包）因此在 CI 的 `ruff check` 中从未被检查过。
+  改排除 `council/web/static`。
+- **注册表根目录可作用域化**：`get_registry()` 此前缓存于单一全局槽位、固定指向进程默认
+  数据目录。`--data-dir X` 下配置与会话搬到了 X、注册表没搬，于是自动发现的覆盖层写进 X
+  却从默认目录读——模型出现在报告里但永远选不中。现改为按根目录键控的缓存，并新增
+  `registry_at()` / `use_registry_root()`：服务端在生命周期内指向自己的数据目录（退出即
+  还原，避免测试间互相污染），CLI 每个命令解析出 `data` 后同样指向。
+- 静态资源缓存参数升至 `1.2.2.2`。
+
+### Fixed
+
+- **每次页面加载把 `/api/sessions` 请求了两次**：`boot()` 显式调 `refreshList()`，紧接着
+  `showView("new")` 内部又调一次。现在由 `showView` 统一负责刷新，`boot()` 只负责进视图；
+  用静态断言钉住这个分工（注释里提到该调用不算数，只查真实语句）。
+- **标签页图标缺失**：`index.html` 未声明任何 icon，浏览器每次加载都去猜 `/favicon.ico`
+  并得到 404。新增 `favicon.svg`（蓝底三枚圆点 = 参与者上限 3）并在 `<head>` 声明，
+  `tests/test_web_assets.py` 顺带校验引用的资源确实存在。
+
+- **两份文件声明同一 provider 时会整体替换**：注册表此前按**文件名**分组，因此一份文件
+  名不同的 TOML（例如 `llm-extras.toml` 里写 `id = "openai_api"`）会整体取代该厂商，
+  内置与已发现的全部模型一并消失，而不是叠加。现按声明的 provider id 分组；无
+  `[provider] id` 的文件仍会给出可读报错，不会静默消失。
+- **手动刷新撞上启动检查返回 409**：现在等待在跑的那一轮结束并复用其写下的结果，
+  既不报错也不重复探测——点「立即检查」是合理动作，不该被惩罚。
+- **`council serve --data-dir X` 的注册表错配**：见上「注册表根目录可作用域化」。
+- `sorted(package.iterdir())` 的 `Traversable` 不可排序类型错误。
+- `council/web` 中 5 处 `try/except/pass` 改为 `contextlib.suppress`、
+  `asyncio.TimeoutError` 改为内建 `TimeoutError`，并移除 4 条无效的
+  `# noqa: BLE001`（BLE001 并未启用，这些指示从未生效）。
+- `CHANGELOG.md` 中错位的 `[Unreleased]` 段落（夹在 1.1.0 与 1.0.0 之间，内容实为已发布
+  的密钥面板与 Windows 打包说明）并入 `1.1.0` 后删除；补齐各版本对比链接。
+
+### Security
+
+- 探测一律把响应当数据：体积上限 8 MiB、形状校验、id 限字符集与长度、写入 TOML 前
+  转义控制字符。畸形或恶意响应只退化为「本次无发现」，不会污染注册表也不会中断会话。
+- Google 密钥走 `x-goog-api-key` 头而非 `?key=` 查询参数，避免密钥进入日志与代理记录。
+- 失败信息只出现密钥**变量名**，绝不回显值——`tests/test_updates_api.py` 用金丝雀值
+  扫描 API 响应、状态文件与全部生成文件来钉住这条。
+- 不写价格：网关对别家模型的标价不是本项目愿意落笔的数字（与 `docs/PROVIDERS.md`
+  同一原则）。
+- 不变量不变：密钥只进系统钥匙串 / `.env`；模型输出仍不能触发任何文件写入，也到不了
+  发现流程。
+
+### 测试
+
+- 新增 84 项全离线用例，合计 **463 项**（1 跳过）：
+  - `tests/test_discovery.py`（54 项）：三条探测路径与分页、过滤矩阵（含保留项）、
+    恶意 id 与显示名注入、只补缺写入、覆盖层无法遮蔽策展数据、手写文件仍可覆盖内置、
+    厂商失败隔离、公开目录歧义时拒绝猜测、状态文件容错。
+  - `tests/test_discovery_thinking.py`（15 项）：Anthropic effort 真值 /
+    `budget_tokens` 降级 / 无 capabilities 时拒绝；Google 同代际取旋钮、无同代际兄弟
+    拒绝；公开目录信号与档位、表外档位名丢弃；无信号拒绝、provider 无声明且无兄弟拒绝、
+    兄弟声明分歧拒绝；`thinking` 与 `extra` 的 TOML 往返。
+  - `tests/test_updates_api.py`（13 项）：开关优先级与持久化、未开启时拒绝刷新、
+    覆盖层落盘**且能被同一数据目录读回**、根目录作用域进出还原、启动检查与
+    `min_interval_h` 节流、密钥金丝雀。
+  - `tests/test_registry.py`（+2 项）：同 provider 多文件合并、无 id 文件报错。
+- `ruff`、`ruff format --check`、`mypy --strict`（33 个源文件）全绿。
+
 ## [1.2.2] - 2026-09-08
 
 补丁版：右侧光效色块错乱重做修复、历史会话超长问题限长。
@@ -131,6 +242,14 @@
   新版本（保留 ETag 304）。
 - 密钥预设扩到 11 家厂商（新增 DeepSeek / Moonshot / 智谱 / 通义 / xAI /
   OpenRouter / 硅基流动 / Meta）。
+- **Web UI 模型密钥面板**：预设 + 任意自定义变量名；只写系统钥匙串、绝不回显；
+  来源状态（环境变量 / `.env` / 钥匙串 / 未配置）实时标注，环境变量遮蔽钥匙串时
+  显式提示。底层新增 `core/secrets.secret_status()`。
+- **Windows 三类分发**：`ai-council.exe`（单文件，下载即用）、
+  `ai-council-win64.zip`（目录版，解压即用、启动无需自解压）、
+  `AI-Council-Setup-<ver>.exe`（Inno Setup 用户级安装器，免管理员，含开始菜单与
+  桌面快捷方式）。脚本：`tools/build_exe.py`（`--onedir` / `--zip`）与
+  `tools/build_installer.py`（目录产物 + zip + 安装器一步到位）。
 
 ### Changed
 
@@ -160,36 +279,13 @@
 - 新增约 150 项：注册表厂商矩阵与世代防伪（伪造 slug 回归）、会话覆盖
   矩阵、131 项全模型干跑、密钥预设清单、删除端点端到端、光效气泡 DOM
   探针等。合计 349 项（1 跳过）；`ruff` 全过。
+- `council run` 与 `council serve`（静态资源 / 主题 / 完整会话）均以构建产物做过
+  端到端冒烟；Web 密钥 API 另有 7 项离线测试（keyring 打桩）。
 
 ### Removed
 
 - `gpt-5.2-chat-latest`、裸 `gpt-6`、`gemini-3.7-pro`、`gemini-3.6-pro`
   等未证实或已下线的模型条目；DeepSeek 收敛为官方在役的三个模型 ID。
-
-## [Unreleased]
-
-### Added
-
-- **Web UI 模型密钥面板**：OpenAI / Anthropic / Gemini 三家预设与任意
-  自定义变量名；只写系统钥匙串、绝不回显；来源状态（环境变量 / .env / 钥匙串 / 未配置）
-  实时标注，环境变量遮蔽钥匙串时显式提示。底层新增 `core/secrets.secret_status()`。
-  （1.1.0 起并入设置面板，预设扩至 11 家。）
-- **Windows 三类分发**：
-  1. `ai-council.exe`——单文件，下载即用（每次启动需自解压）；
-  2. `ai-council-win64.zip`——目录版打包，解压即用、启动无需自解压；
-  3. `AI-Council-Setup-<ver>.exe`——Inno Setup 用户级安装器（免管理员），开始菜单 /
-     桌面快捷方式，安装时一次性展开。
-  脚本：`tools/build_exe.py`（`--onedir` / `--zip`）与 `tools/build_installer.py`
-  （目录产物 + zip + 安装器一步到位）；release 工作流在 `v*` 标签自动产出三者并发布。
-- **Windows 免 Python 安装包**：`tools/build_exe.py`（PyInstaller，单文件 ~20MB）产出
-  `dist/ai-council.exe`；新增 `pip install ".[packaging]"` 可选依赖；release 工作流在打
-  `v*` 标签时自动在 windows-latest 上构建 exe、跑一场 fake 会谈冒烟后随 GitHub Release 发布。
-  包内数据（Web 静态资源 / registry TOML / 提示词模板）通过 `--collect-data council` 显式收集。
-
-### 测试
-
-- `council run` 与 `council serve`（静态资源 / 主题 / 完整会话）均以构建产物做过端到端冒烟。
-- Web 密钥 API 新增 7 项离线测试（keyring 打桩）。
 
 ## [1.0.0] - 2026-09-02
 
@@ -353,5 +449,16 @@
 - 密钥不入仓库：配置模型不包含任何密钥字段；真实密钥仅存 OS keyring 或已 gitignore 的 `.env`（M2 接入）。
 - 附件与模型输出一律视为数据：数据区包裹 + 系统提示声明 + 闭合标签转义。
 
-[Unreleased]: https://github.com/xmwy0712/ai-council/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/xmwy0712/ai-council/compare/v1.3.0...HEAD
+[1.3.0]: https://github.com/xmwy0712/ai-council/releases/tag/v1.3.0
+[1.2.2]: https://github.com/xmwy0712/ai-council/releases/tag/v1.2.2
+[1.2.1]: https://github.com/xmwy0712/ai-council/releases/tag/v1.2.1
+[1.2.0]: https://github.com/xmwy0712/ai-council/releases/tag/v1.2.0
+[1.1.1]: https://github.com/xmwy0712/ai-council/releases/tag/v1.1.1
+[1.1.0]: https://github.com/xmwy0712/ai-council/releases/tag/v1.1.0
+[1.0.0]: https://github.com/xmwy0712/ai-council/releases/tag/v1.0.0
+[0.5.0]: https://github.com/xmwy0712/ai-council/releases/tag/v0.5.0
+[0.4.0]: https://github.com/xmwy0712/ai-council/releases/tag/v0.4.0
+[0.3.0]: https://github.com/xmwy0712/ai-council/releases/tag/v0.3.0
+[0.2.0]: https://github.com/xmwy0712/ai-council/releases/tag/v0.2.0
 [0.1.0]: https://github.com/xmwy0712/ai-council/releases/tag/v0.1.0

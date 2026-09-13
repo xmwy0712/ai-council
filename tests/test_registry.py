@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
 from council.core.config import parse_config
@@ -22,8 +24,11 @@ def test_model_lookup() -> None:
 
 
 def test_no_fabricated_generation_slugs() -> None:
-    """GPT-6 家族仅 gpt-6-astra；Gemini Pro 线旗舰仍是 3.1——伪造世代一律不收录。"""
-    registry = Registry.load()
+    """GPT-6 家族仅 gpt-6-astra；Gemini Pro 线旗舰仍是 3.1——伪造世代一律不收录。
+
+    只看已策展基线：自动发现的覆盖层是用户数据，不由它决定我们"承诺不存在什么"。
+    """
+    registry = Registry.load(include_discovered=False)
     for bad in ("gpt-6", "gemini-3.7-pro", "gemini-3.6-pro"):
         assert registry.model(bad) is None, bad
     assert registry.model("gpt-6-astra") is not None
@@ -315,3 +320,36 @@ def test_gemini_flash_has_minimal_pro_does_not() -> None:
     assert registry.translate_thinking("google_api", "gemini-3.8-flash", "minimal").value == (
         "MINIMAL"
     )
+
+
+def test_same_provider_in_two_files_merges_instead_of_replacing(tmp_path: Path) -> None:
+    """Identity is the declared provider id, not the filename.
+
+    Keying the merge by filename meant a stray second file — ``llm-extras.toml``
+    naming ``openai_api`` — replaced the whole provider: every curated model and
+    every discovered id gone in one go. Discovered overlays made that reachable
+    by accident, so it is pinned down here.
+    """
+    user = tmp_path / "registry"
+    user.mkdir()
+    (user / "openai_api.toml").write_text(
+        '[provider]\nid = "openai_api"\ndisplay = "Renamed"\n[[models]]\nid = "mine-a"\n',
+        encoding="utf-8",
+    )
+    (user / "zz-extras.toml").write_text(
+        '[provider]\nid = "openai_api"\n[[models]]\nid = "mine-b"\n',
+        encoding="utf-8",
+    )
+    provider = Registry.load(user_dir=user).providers["openai_api"]
+    assert {"mine-a", "mine-b"} <= set(provider.models)
+    assert len(provider.models) > 2, "built-in entries must survive both files"
+    assert provider.display == "Renamed"
+
+
+def test_file_without_provider_id_still_reports_readably(tmp_path: Path) -> None:
+    """Dropping the filename key must not turn a malformed file silent."""
+    user = tmp_path / "registry"
+    user.mkdir()
+    (user / "broken.toml").write_text('[[models]]\nid = "m"\n', encoding="utf-8")
+    with pytest.raises(RegistryError, match="provider"):
+        Registry.load(user_dir=user)
