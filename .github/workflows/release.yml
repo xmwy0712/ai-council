@@ -59,11 +59,13 @@ jobs:
         with:
           name: ai-council-windows
           path: dist-exe
+      - name: Generate release notes from CHANGELOG
+        run: uv run python tools/release_notes.py "${{ github.ref_name }}" --out release-notes.md
       - name: Create release
         uses: softprops/action-gh-release@v2
         with:
           files: |
             dist/*
             dist-exe/*
-          generate_release_notes: true
+          body_path: release-notes.md
           fail_on_unmatched_files: true
