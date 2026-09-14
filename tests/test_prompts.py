@@ -50,6 +50,7 @@ def test_every_phase_template_renders() -> None:
             "author": "n1",
             "debate_round": 1,
             "debate_rounds": 2,
+            "max_chars": 4000,
             "data_zones": wrap_data("question", "问题"),
             "hints": "",
             "error": "错误",

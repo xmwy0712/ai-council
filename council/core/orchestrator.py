@@ -32,6 +32,8 @@ from typing import Any, Protocol, TypeVar
 from pydantic import BaseModel
 
 from ..adapters.base import (
+    resolve_max_chars_debate,
+    resolve_max_chars_review,
     resolve_max_output_tokens,
     resolve_max_retries,
     resolve_temperature,
@@ -1359,6 +1361,7 @@ class CouncilEngine:
                 node_id=node.id,
                 version=self.state.version,
                 author=self.state.selected or "",
+                max_chars=resolve_max_chars_review(node, self.config),
                 data_zones=self._zones(
                     question=self.state.question,
                     proposal=self._dump(self.state.current_proposal or {}),
@@ -1385,6 +1388,7 @@ class CouncilEngine:
                 author=self.state.selected or "",
                 debate_round=index,
                 debate_rounds=self.config.council.debate_rounds,
+                max_chars=resolve_max_chars_debate(node, self.config),
                 data_zones=self._zones(
                     question=self.state.question,
                     proposal=self._dump(self.state.current_proposal or {}),

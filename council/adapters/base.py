@@ -11,6 +11,8 @@ from ..core.config import Config, NodeSection
 from ..core.contracts import TimeoutSpec
 
 __all__ = [
+    "resolve_max_chars_debate",
+    "resolve_max_chars_review",
     "resolve_max_output_tokens",
     "resolve_max_retries",
     "resolve_temperature",
@@ -54,4 +56,26 @@ def resolve_max_retries(node: NodeSection, config: Config) -> int:
         node.overrides.max_retries
         if node.overrides.max_retries is not None
         else config.failure.max_retries
+    )
+
+
+def resolve_max_chars_review(node: NodeSection, config: Config) -> int:
+    """P3 评审的字数上限（节点级覆盖 > 全局）。
+
+    这个值必须真的进入提示词：模板里写了「字数有上限」却没给数字，
+    模型无从遵守，配置项也就成了空头承诺。
+    """
+    return (
+        node.overrides.max_chars
+        if node.overrides.max_chars is not None
+        else config.budget.max_chars_review
+    )
+
+
+def resolve_max_chars_debate(node: NodeSection, config: Config) -> int:
+    """P4 辩论单条的字数上限（节点级覆盖 > 全局）。"""
+    return (
+        node.overrides.max_chars
+        if node.overrides.max_chars is not None
+        else config.budget.max_chars_debate
     )
