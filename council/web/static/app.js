@@ -170,6 +170,8 @@ function saveExportRaw() {
 function collectTuning() {
   const out = {};
   if (TUNING.idle_s > 0) out.idle_s = TUNING.idle_s;
+  // 单次调用的总时长上限：超大型会话（长上下文 + max 档）需要放宽
+  if (TUNING.total_s > 0) out.total_s = TUNING.total_s;
   if (TUNING.max_retries >= 0) out.max_retries = TUNING.max_retries;
   // 策略只影响新建会话；已开的会话沿用创建时的值
   if (TUNING.policy) out.policy = TUNING.policy;
@@ -1720,21 +1722,29 @@ function renderPolicyOptions() {
 
 function renderTuningInputs() {
   const idle = $("tune-idle");
+  const total = $("tune-total");
   const retries = $("tune-retries");
   const policy = $("tune-policy");
   if (!idle || !retries) return;
   idle.value = TUNING.idle_s > 0 ? TUNING.idle_s : 90;
+  if (total) total.value = TUNING.total_s > 0 ? TUNING.total_s : 900;
   retries.value = TUNING.max_retries >= 0 ? TUNING.max_retries : 3;
   if (policy) policy.value = TUNING.policy || "ask_user";
 }
 
 function bindTuningInputs() {
   const idle = $("tune-idle");
+  const total = $("tune-total");
   const retries = $("tune-retries");
   const policy = $("tune-policy");
   if (idle) idle.addEventListener("change", () => {
     TUNING.idle_s = Math.max(10, Math.min(3600, Number(idle.value) || 90));
     idle.value = TUNING.idle_s;
+    saveTuning();
+  });
+  if (total) total.addEventListener("change", () => {
+    TUNING.total_s = Math.max(60, Math.min(7200, Number(total.value) || 900));
+    total.value = TUNING.total_s;
     saveTuning();
   });
   if (policy) policy.addEventListener("change", () => {
