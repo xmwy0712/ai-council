@@ -28,7 +28,7 @@ from ..core.contracts import (
 from ..core.errors import CouncilError, ErrorKind
 from ..core.secrets import require
 from ..registry.loader import get_registry
-from ._http import classify_http_error, ensure_success, iter_sse_data
+from ._http import classify_http_error, ensure_success, iter_sse_data, stream_timeout
 
 __all__ = ["GoogleAdapter"]
 
@@ -140,7 +140,7 @@ class GoogleAdapter:
                 f"{self._base_url}/v1beta/models/{req.model}:streamGenerateContent?alt=sse",
                 json=self._payload(req),
                 headers=self._headers(),
-                timeout=req.timeout.connect_s,
+                timeout=stream_timeout(req.timeout),
             ) as response:
                 await ensure_success(response, node_id=self.id)
                 async for raw in iter_sse_data(response):

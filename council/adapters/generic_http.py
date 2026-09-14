@@ -29,7 +29,7 @@ from ..core.contracts import (
 )
 from ..core.errors import CouncilError, ErrorKind
 from ..core.secrets import resolve
-from ._http import classify_http_error, ensure_success, parse_json_path
+from ._http import classify_http_error, ensure_success, parse_json_path, stream_timeout
 
 __all__ = ["GenericHttpAdapter"]
 
@@ -140,7 +140,7 @@ class GenericHttpAdapter:
                 self._url,
                 json=self._render_body(req),
                 headers=self._headers,
-                timeout=req.timeout.total_s,
+                timeout=stream_timeout(req.timeout),
             )
             await ensure_success(response, node_id=self.id)
             data = response.json()
