@@ -1071,7 +1071,160 @@ function wsAction(action, extra = {}) {
 
 let activeAsk = null;
 
+/** 「换适配器」下拉的候选：适配器名 + 说明。
+ *
+ * 数据源有两类，因为它们等价（工厂先按适配器名查，查不到再按厂商声明的协议查）：
+ *   - 适配器本身：openai_api / anthropic_api / google_api / cli_session / generic_http / fake
+ *   - 已声明协议的厂商（如 deepseek / zhipu / moonshot），它们自带 base_url 与密钥变量名
+ */
+function buildAdapterChoices() {
+  const seen = new Map();
+  const BUILTIN = ["openai_api", "anthropic_api", "google_api", "cli_session", "generic_http", "fake"];
+  BUILTIN.forEach((name) => seen.set(name, { value: name, label: name, group: t("ask.adapters.builtin") }));
+  (MODELS ? MODELS.providers : []).forEach((provider) => {
+    const kind = provider.adapter || provider.id;
+    if (kind && !seen.has(kind)) {
+      seen.set(kind, { value: kind, label: kind, group: t("ask.adapters.protocol") });
+    }
+    // 厂商名本身也可作为值：工厂会解析到它声明的协议
+    if (!seen.has(provider.id)) {
+      seen.set(provider.id, {
+        value: provider.id,
+        label: `${provider.id} — ${provider.display}`,
+        group: t("ask.adapters.vendor"),
+        note: kind !== provider.id ? `${t("ask.adapters.uses")} ${kind}` : "",
+      });
+    }
+  });
+  return [...seen.values()];
+}
+
+/** 「换模型」下拉的候选：只给此刻真的能用的模型，按厂商分组。 */
+function buildModelChoices() {
+  const groups = [];
+  (MODELS ? MODELS.providers : []).forEach((provider) => {
+    if (provider.available === false) return;
+    const models = provider.models.filter((m) => m.usable !== false);
+    if (!models.length) return;
+    groups.push({
+      display: provider.display,
+      items: models.map((m) => ({ value: m.id, label: m.display || m.id })),
+    });
+  });
+  return groups;
+}
+
+/** 当前节点的适配器（用于在换适配器时提示模型是否匹配）。 */
+function currentNodeAdapter(nodeId) {
+  const el = document.querySelector(`select.r-model[data-node="${nodeId}"]`);
+  if (!el) return "";
+  const row = el.closest(".roster-row");
+  return row ? (row.dataset.adapter || "") : "";
+}
+
+/** 渲染一个可搜索展开的分组下拉（复用 mp-* 样式），返回 {el, getValue}。 */
+function buildChoicePicker(items, groups, onPick) {
+  const wrap = h("div", "mp-wrap ask-picker");
+  const trigger = h("button", "mp-trigger");
+  trigger.type = "button";
+  const panel = h("div", "mp-panel hidden");
+  let current = "";
+
+  const paint = () => {
+    text(trigger, current || items.placeholder || "…");
+    panel.querySelectorAll(".mp-opt").forEach((o) => {
+      o.classList.toggle("selected", o.dataset.value === current);
+    });
+  };
+
+  const rebuild = () => {
+    panel.replaceChildren();
+    (groups || []).forEach((group) => {
+      const head = h("div", "mp-group-h");
+      text(head, group.display);
+      panel.appendChild(head);
+      group.items.forEach((it) => {
+        const btn = h("button", "mp-opt");
+        btn.type = "button";
+        btn.dataset.value = it.value;
+        text(btn, it.note ? `${it.label}  ·  ${it.note}` : it.label);
+        btn.addEventListener("click", () => {
+          current = it.value;
+          paint();
+          onPick(it.value);
+          panel.classList.add("hidden");
+        });
+        panel.appendChild(btn);
+      });
+    });
+    paint();
+  };
+
+  trigger.addEventListener("click", (event) => {
+    event.stopPropagation();
+    const opening = panel.classList.contains("hidden");
+    closePanels();
+    if (opening) {
+      rebuild();
+      panel.classList.remove("hidden");
+    }
+  });
+  wrap.addEventListener("click", (event) => event.stopPropagation());
+  wrap.appendChild(trigger);
+  wrap.appendChild(panel);
+  return { el: wrap, getValue: () => current, setValue: (v) => { current = v; paint(); } };
+}
+
 const ACTION_LABELS = ["retry", "wait", "switch_model", "switch_adapter", "drop_node", "abort"];
+
+/** 在 ask 面板里挂出「换模型 / 换适配器」的选择器。 */
+function mountChoicePicker(kind, ask) {
+  const box = $("ask-body");
+  const sendBtn = document.querySelector("#ask-body .primary");
+  const old = document.getElementById("__ask-picker");
+  if (old) old.remove();
+
+  const holder = h("div", "ask-picker-holder");
+  holder.id = "__ask-picker";
+
+  let picker;
+  if (kind === "switch_adapter") {
+    const items = buildAdapterChoices();
+    const groups = [];
+    const byGroup = new Map();
+    items.forEach((it) => {
+      if (!byGroup.has(it.group)) {
+        byGroup.set(it.group, { display: it.group, items: [] });
+        groups.push(byGroup.get(it.group));
+      }
+      byGroup.get(it.group).items.push(it);
+    });
+    picker = buildChoicePicker({ placeholder: t("ask.switch_adapter.ph") }, groups, (value) => {
+      holder.dataset.value = value;
+      const kindOf = (MODELS ? MODELS.providers : []).find((p) => p.id === value);
+      const protocol = kindOf ? (kindOf.adapter || kindOf.id) : value;
+      const noteEl = holder.querySelector(".ask-note");
+      if (noteEl) {
+        text(noteEl, t("ask.adapter.note").replace("{adapter}", value).replace("{protocol}", protocol));
+      }
+    });
+  } else {
+    const groups = buildModelChoices();
+    picker = buildChoicePicker({ placeholder: t("ask.switch_model.ph") }, groups, (value) => {
+      holder.dataset.value = value;
+    });
+  }
+
+  holder.appendChild(picker.el);
+  const noteEl = h("p", "hint ask-note");
+  text(noteEl, kind === "switch_adapter" ? t("ask.adapter.hint") : t("ask.model.hint"));
+  holder.appendChild(noteEl);
+  box.appendChild(holder);
+
+  if (sendBtn) sendBtn.classList.remove("hidden");
+  const cancelBtn = document.querySelector("#ask-body .chip");
+  if (cancelBtn) cancelBtn.classList.remove("hidden");
+}
 
 function renderAskButtons(ask) {
   const box = $("ask-body");
@@ -1100,10 +1253,10 @@ function renderAskButtons(ask) {
       const button = h("button");
       text(button, t(map[value] || value));
       button.addEventListener("click", () => {
+        // 换模型 / 换适配器：给可选项而不是让人凭空敲名字
         if (value === "switch_model" || value === "switch_adapter") {
-          input.placeholder = value === "switch_model" ? t("ask.switch_model.ph") : t("ask.switch_adapter.ph");
           activeAsk.pendingValue = value;
-          enableInput();
+          mountChoicePicker(value, ask);
           return;
         }
         wsAnswer(activeAsk.ask_id, { action: value });
@@ -1125,6 +1278,19 @@ function renderAskButtons(ask) {
   }
 
   send.addEventListener("click", () => {
+    // 换模型 / 换适配器走选择器，其余仍用文本框
+    const pickerEl = document.querySelector("#__ask-picker .mp-trigger");
+    if (pickerEl && activeAsk.pendingValue) {
+      const holder = document.getElementById("__ask-picker");
+      const chosen = holder && holder.dataset.value ? holder.dataset.value : "";
+      if (!chosen) { banner($("ask-error"), t("ask.error.missing")); return; }
+      const payload = { action: activeAsk.pendingValue };
+      if (activeAsk.pendingValue === "switch_model") payload.model = chosen;
+      else payload.adapter = chosen;
+      wsAnswer(activeAsk.ask_id, payload);
+      closeAsk();
+      return;
+    }
     const value = input.value.trim();
     if (!value) { banner($("ask-error"), t("ask.error.missing")); return; }
     if (activeAsk.pendingValue) {

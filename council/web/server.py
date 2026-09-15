@@ -426,6 +426,9 @@ def create_app(
                 {
                     "id": provider.id,
                     "display": provider.display,
+                    # 该厂商声明的调用协议（空表示与 provider id 同名）。
+                    # 前端「换适配器」下拉用它判定「换过去后当前模型还认不认」。
+                    "adapter": provider.adapter or provider.id,
                     "secret_required": provider.secret_required,
                     "available": available,
                     "models": models,
