@@ -333,7 +333,11 @@ function renderRosterEditor() {
         const pinned = h("button", "mp-opt mp-pinned selected");
         pinned.type = "button";
         pinned.dataset.value = id;
-        text(pinned, displayFor(id));
+        const pname = h("span", "mp-name");
+        text(pname, displayFor(id));
+        pinned.appendChild(pname);
+        const pinInfo = findModelInfo(id);
+        if (pinInfo) pinned.appendChild(thinkingBadge(pinInfo));
         pinned.addEventListener("click", () => choose(id));
         panel.appendChild(pinned);
       }
@@ -348,7 +352,11 @@ function renderRosterEditor() {
           const opt = h("button", "mp-opt");
           opt.type = "button";
           opt.dataset.value = m.id;
-          text(opt, m.display || m.id);
+          // 模型名 + 思考档位徽标：一眼看清这个模型能调多深的思考
+          const name = h("span", "mp-name");
+          text(name, m.display || m.id);
+          opt.appendChild(name);
+          opt.appendChild(thinkingBadge(m));
           opt.addEventListener("click", () => choose(m.id));
           if (index < VISIBLE) panel.appendChild(opt);
           else rest.appendChild(opt);
@@ -1173,6 +1181,42 @@ function buildChoicePicker(items, groups, onPick) {
   wrap.appendChild(trigger);
   wrap.appendChild(panel);
   return { el: wrap, getValue: () => current, setValue: (v) => { current = v; paint(); } };
+}
+
+/** 模型条目右侧的思考档位徽标。
+ *
+ * 数据来自 /api/models：thinking（该模型是否支持思考）+ thinking_levels（档位表）。
+ * 不支持思考的也显式标出来——"没有档位"本身是用户要判断的信息，
+ * 留空白会让人以为是界面没加载出来。
+ */
+/** 按 model id 在 /api/models 里查它的目录信息（含 thinking_levels）。 */
+function findModelInfo(modelId) {
+  if (!modelId || !MODELS) return null;
+  for (const provider of MODELS.providers) {
+    const hit = (provider.models || []).find((m) => m.id === modelId);
+    if (hit) return hit;
+  }
+  return null;
+}
+
+function thinkingBadge(model) {
+  const wrap = h("span", "mp-badge");
+  const levels = Array.isArray(model.thinking_levels) ? model.thinking_levels : [];
+  if (!model.thinking || !levels.length) {
+    wrap.classList.add("mp-badge-none");
+    text(wrap, t("picker.no_thinking"));
+    return wrap;
+  }
+  // 三档以内全列；更多则列前两个 + 「+N」，避免长到撑破一行
+  const shown = levels.length <= 3 ? levels : levels.slice(0, 2);
+  text(wrap, shown.map((lv) => t("roster.level." + lv) === "roster.level." + lv ? lv : lv).join(" / "));
+  if (levels.length > 3) {
+    const more = h("span", "mp-badge-more");
+    text(more, `+${levels.length - shown.length}`);
+    wrap.appendChild(more);
+  }
+  wrap.title = levels.join(" / ");
+  return wrap;
 }
 
 const ACTION_LABELS = ["retry", "wait", "switch_model", "switch_adapter", "drop_node", "abort"];

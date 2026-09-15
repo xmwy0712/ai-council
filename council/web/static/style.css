@@ -705,6 +705,20 @@ html[data-theme-id="high-contrast"] .primary { background: var(--accent); box-sh
   color: var(--text);
 }
 
+/* 模型条目：名字在左，思考档位徽标在右。徽标要窄、低对比，只作提示不抢焦点。 */
+.mp-opt .mp-name { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mp-badge {
+  flex: 0 0 auto; margin-left: 10px; padding: 2px 8px; border-radius: 999px;
+  font-size: 11.5px; letter-spacing: .02em; white-space: nowrap;
+  color: var(--accent); border: 1px solid color-mix(in srgb, var(--accent) 42%, transparent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+.mp-badge-none {
+  color: var(--text-dim); border-color: var(--border);
+  background: transparent; font-size: 11px;
+}
+.mp-badge-more { margin-left: 4px; opacity: .8; }
+
 /* ================================== 首页三区布局（会谈 / 设置 / 历史） ==== */
 
 /* ================================== 入口页 + 子页（单页内切换） ==== */

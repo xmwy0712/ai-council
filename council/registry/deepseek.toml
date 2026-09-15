@@ -1,12 +1,14 @@
 # DeepSeek（OpenAI 兼容端点）
-# 核实 2026-09-06（官方文档 api-docs.deepseek.com 直证）：
-# API 仅暴露三个模型 id ——
-#   deepseek-v4-flash            版本 DeepSeek-V4-Flash-0731
-#   deepseek-v4-pro              版本 DeepSeek-V4-Pro-0813
-#   deepseek-v4-flash-vision-exp 实验性，额外支持图像输入
-# 1M 上下文 / 384K 最大输出；旧 chat/reasoner 及带日期的快照 id 均已下线。
-# 思考：嵌套 thinking:{type} 可开关 + 标量 reasoning_effort（low / high(默认) / max）。
-# 旋钮用标量 reasoning_effort：medium 向上映射为 high，high 映射为 max。
+# 核实 2026-09-15（官方文档 api-docs.deepseek.com 与 /v1/models 实测）：
+#   2026-09-10 发布 DeepSeek-V4.1-Flash，API 模型名改为 `deepseek-flash`；
+#   旧的 deepseek-v4-flash 与 deepseek-v4-flash-vision-exp 已下线，
+#   出于兼容被暂时路由到 V4.1 Flash。真实 /v1/models 只返回两个 id：
+#     deepseek-flash      版本 DeepSeek-V4.1-Flash（原生多模态）
+#     deepseek-v4-pro     版本 DeepSeek-V4-Pro-0813（继续提供）
+# 思考：嵌入 thinking:{type} 可开关 + 标量 reasoning_effort。
+#   官方档位 low / high(默认) / max；映射表 minimal→low、medium→high、
+#   xhigh→high、ultra→max，故只声明可精确表达的三档。
+# 思考模式不支持 temperature / presence_penalty / frequency_penalty（传了也不生效）。
 
 [provider]
 id = "deepseek"
@@ -27,28 +29,19 @@ high = "high"
 max = "max"
 
 [[models]]
+id = "deepseek-flash"
+display = "DeepSeek V4.1 Flash"
+thinking = true
+max_context_tokens = 1048576
+max_output_tokens = 393216
+verified = "2026-09-15"
+source = "https://api-docs.deepseek.com/zh-cn/updates"
+
+[[models]]
 id = "deepseek-v4-pro"
 display = "DeepSeek V4 Pro（0813）"
 thinking = true
 max_context_tokens = 1048576
 max_output_tokens = 393216
-verified = "2026-09-06"
-source = "https://api-docs.deepseek.com"
-
-[[models]]
-id = "deepseek-v4-flash"
-display = "DeepSeek V4 Flash（0731）"
-thinking = true
-max_context_tokens = 1048576
-max_output_tokens = 393216
-verified = "2026-09-06"
-source = "https://api-docs.deepseek.com"
-
-[[models]]
-id = "deepseek-v4-flash-vision-exp"
-display = "DeepSeek V4 Flash Vision（实验）"
-thinking = true
-max_context_tokens = 1048576
-max_output_tokens = 393216
-verified = "2026-09-06"
-source = "https://api-docs.deepseek.com"
+verified = "2026-09-15"
+source = "https://api-docs.deepseek.com/zh-cn/updates"

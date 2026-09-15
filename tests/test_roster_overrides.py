@@ -148,7 +148,7 @@ def test_model_override_switches_node_adapter(tmp_path: Path) -> None:
             json={
                 "question": "适配器联动测试",
                 "overrides": [
-                    {"node_id": "a", "model": "deepseek-v4-flash", "thinking": "low"},
+                    {"node_id": "a", "model": "deepseek-flash", "thinking": "low"},
                     {"node_id": "b", "model": "kimi-k3", "thinking": "max"},
                 ],
             },
@@ -248,7 +248,7 @@ def test_partial_picks_disable_unpicked_fake_nodes(tmp_path: Path) -> None:
             "/api/sessions",
             json={
                 "question": "部分选择测试",
-                "overrides": [{"node_id": "n1", "model": "deepseek-v4-flash"}],
+                "overrides": [{"node_id": "n1", "model": "deepseek-flash"}],
             },
         )
         assert r.status_code == 202, r.text
@@ -256,7 +256,7 @@ def test_partial_picks_disable_unpicked_fake_nodes(tmp_path: Path) -> None:
         nodes = {n.id: n for n in hub._config.nodes}
         # n1 被点名：切换到真实模型/厂商，保留
         assert nodes["n1"].enabled is True
-        assert nodes["n1"].model == "deepseek-v4-flash"
+        assert nodes["n1"].model == "deepseek-flash"
         assert nodes["n1"].adapter == "deepseek"
         # n2/n3 未被点名且仍是 fake：禁用
         assert nodes["n2"].enabled is False, "未选模型的 fake 节点应被禁用"
@@ -290,7 +290,7 @@ def test_single_participant_session_still_completes(tmp_path: Path) -> None:
             "/api/sessions",
             json={
                 "question": "单模型讨论",
-                "overrides": [{"node_id": "n1", "model": "deepseek-v4-flash"}],
+                "overrides": [{"node_id": "n1", "model": "deepseek-flash"}],
             },
         )
         assert r.status_code == 202, r.text

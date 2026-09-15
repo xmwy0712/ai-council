@@ -217,7 +217,7 @@ def test_openai_compatible_vendors_load() -> None:
     from council.adapters import _resolve_factory
     from council.core.config import NodeSection
 
-    node = NodeSection(id="a", adapter="deepseek", model="deepseek-v4-flash")
+    node = NodeSection(id="a", adapter="deepseek", model="deepseek-flash")
     assert _resolve_factory(node) is not None
 
 
@@ -234,10 +234,10 @@ def test_deepseek_effort_maps_medium_to_high() -> None:
     """官方枚举为 low / high(默认) / max：无 medium 档，medium 请求应拒绝。"""
     registry = Registry.load()
     # 官方核实 2026-09-06：deepseek-v4 仅 low / high / max 三档，medium 不存在
-    assert registry.translate_thinking("deepseek", "deepseek-v4-flash", "medium") is None
-    high = registry.translate_thinking("deepseek", "deepseek-v4-flash", "high")
+    assert registry.translate_thinking("deepseek", "deepseek-flash", "medium") is None
+    high = registry.translate_thinking("deepseek", "deepseek-flash", "high")
     assert high is not None and high.value == "high"
-    max_ = registry.translate_thinking("deepseek", "deepseek-v4-flash", "max")
+    max_ = registry.translate_thinking("deepseek", "deepseek-flash", "max")
     assert max_ is not None and max_.value == "max"
 
 
@@ -289,7 +289,7 @@ def test_effort_levels_are_per_model_not_three() -> None:
     assert old == ["high", "low", "medium", "none"]  # xhigh/max 不支持
 
     # DeepSeek / GLM-5.3：low / high / max（无 medium）
-    assert sorted(registry.thinking_spec("deepseek", "deepseek-v4-flash").levels) == [
+    assert sorted(registry.thinking_spec("deepseek", "deepseek-flash").levels) == [
         "high",
         "low",
         "max",

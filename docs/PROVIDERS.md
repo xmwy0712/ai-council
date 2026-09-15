@@ -106,7 +106,7 @@ TODO：官方是否有直接控制思考预算的 CLI 参数（本次未取到�
 |---|---|---|
 | 端点 | `POST https://api.deepseek.com/v1/chat/completions`，OpenAI 兼容（另有 Anthropic 格式 `/anthropic`） | ✅ 官方 |
 | 密钥 | `DEEPSEEK_API_KEY`，Bearer | ✅ 官方 |
-| 模型 id | **仅三个**：`deepseek-v4-flash`（版本 DeepSeek-V4-Flash-0731）、`deepseek-v4-pro`（版本 DeepSeek-V4-Pro-0813）、`deepseek-v4-flash-vision-exp`（实验性图像输入） | ✅ 官方 |
+| 模型 id | **仅三个**：`deepseek-flash`（版本 DeepSeek-V4-Flash-0731）、`deepseek-v4-pro`（版本 DeepSeek-V4-Pro-0813）、`deepseek-flash`（实验性图像输入） | ✅ 官方 |
 | 上下文 | 1M / 最大输出 384K（三模型一致） | ✅ 官方 |
 | 思考 | 嵌套 `thinking:{type:"enabled"}` 可开关 + 标量 `reasoning_effort`：`low` / `high`(默认) / `max`；旋钮取标量，medium 向上映射为 high、high 映射为 max | ✅ 官方 |
 

@@ -41,7 +41,7 @@ def _node(adapter: str, model: str = "placeholder") -> NodeSection:
     [
         ("moonshot", "glm-5.3", "zhipu"),  # 跨厂商（用户实际踩的坑）
         ("moonshot", "agy:", "cli_session"),  # 跨到本地 CLI
-        ("moonshot", "deepseek-v4-flash", "deepseek"),
+        ("moonshot", "deepseek-flash", "deepseek"),
         ("zhipu", "glm-5.3-flash", "zhipu"),  # 同厂商：保持
     ],
 )
@@ -75,7 +75,7 @@ def test_unknown_model_leaves_adapter_alone() -> None:
 
 def test_synced_adapter_is_a_real_adapter() -> None:
     """同步出来的适配器名必须是工厂认识的名字，否则实例化时才炸。"""
-    for model_id in ("glm-5.3", "agy:", "deepseek-v4-flash", "gpt-5.6-sol"):
+    for model_id in ("glm-5.3", "agy:", "deepseek-flash", "gpt-5.6-sol"):
         node = _node("moonshot")
         apply_model_to_node(node, model_id)
         assert node.adapter in _FACTORIES or node.adapter in {
