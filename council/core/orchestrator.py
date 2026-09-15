@@ -40,6 +40,7 @@ from ..adapters.base import (
     resolve_thinking,
     resolve_timeout,
 )
+from ..registry import get_registry
 from .attachments import Attachment, load_attachments, render_zones
 from .breaker import CircuitBreaker
 from .config import (
@@ -147,6 +148,44 @@ class NodeUnavailable(RuntimeError):
         # rate limit / timeout): the block may heal on its own, so the phase
         # may probe and retry instead of unwinding.
         self.retryable = retryable
+
+
+def apply_model_to_node(node: NodeSection, model_id: str) -> str | None:
+    """把模型写到节点上，并**同步切换 adapter** 到该模型所属厂商。
+
+    返回被同步的适配器名（用于事件与提示），无需同步时返回 None。
+
+    为什么必须联动：模型与厂商是绑定的。只改 ``node.model`` 而留着旧
+    ``node.adapter``，请求会带着新模型名打到旧厂商的端点——厂商不认识它，
+    通常回 429/404，而调用方会把它误读成「限流」。用户实测里给节点配了
+    ``adapter=moonshot`` 却选 ``agy:``（本地 CLI），就报出了「HTTP 429」
+    这种物理上不可能的结果。
+
+    ``cli_session`` 的模型用 ``agy:`` / ``codex:`` / ``claude:`` 形式，
+    除适配器外还要把 ``settings.cli`` 指到前缀。
+    """
+    registry = get_registry()
+    spec = registry.model(model_id)
+    node.model = model_id
+    if spec is None:
+        # 不在注册表里：保持原适配器不动，交由调用方校验或报错。
+        return None
+
+    owner = next(
+        (pid for pid, provider in registry.providers.items() if model_id in provider.models),
+        None,
+    )
+    if owner is None:
+        return None
+
+    if owner == "cli_session":
+        node.adapter = "cli_session"
+        node.settings["cli"] = model_id.split(":", 1)[0]
+        return "cli_session"
+    if node.adapter != owner:
+        node.adapter = owner
+        return owner
+    return None
 
 
 class InterventionAction(StrEnum):
@@ -1087,8 +1126,14 @@ class CouncilEngine:
         if decision.action is InterventionAction.SWITCH_MODEL:
             if not decision.model:
                 return False
-            node.model = decision.model
-            await self._emit_config_changed(f"节点 {node.id} 的模型切换为 {decision.model}")
+            synced = apply_model_to_node(node, decision.model)
+            detail = f"节点 {node.id} 的模型切换为 {decision.model}"
+            if synced:
+                # 必须一起动适配器：否则新模型会带着旧厂商的端点发出去
+                detail += f"，适配器同步为 {synced}"
+                if self._adapter_builder is not None:
+                    self.adapters = dict(self._adapter_builder(self.config))
+            await self._emit_config_changed(detail)
             return True
         if decision.action is InterventionAction.SWITCH_ADAPTER:
             if not decision.adapter:
