@@ -114,6 +114,10 @@ def test_history_is_untouched_by_ui_change(tmp_path: Path) -> None:
 
     用户明确要求「历史对话记录更新后必须还在」。这里用同一 data_dir
     建→读→再建，确认既有会话不被删改。
+
+    不依赖会话后台任务是否跑完：重启模拟用的是**新数据目录的第二次 create_app**，
+    而断言只关心「会话行与事件行还在」——这是持久层的事，与会话跑到哪一步无关。
+    早期版本曾因后台任务与关闭时机竞争而偶发失败（1/3），故这里不校验进度类字段。
     """
     with _client(tmp_path) as client:
         r = client.post("/api/sessions", json={"question": "历史保留验证"})
@@ -127,6 +131,7 @@ def test_history_is_untouched_by_ui_change(tmp_path: Path) -> None:
 
         ev_before = client.get(f"/api/sessions/{sid}/events").json()
         n_before = len(ev_before.get("events", ev_before))
+        assert n_before > 0, "新会话至少应有建会话事件"
 
     # 重新打开同一目录（模拟升级后重启）
     with _client(tmp_path) as client:
@@ -135,9 +140,15 @@ def test_history_is_untouched_by_ui_change(tmp_path: Path) -> None:
         second_ids = {s["session_id"] for s in second_items}
         assert sid in second_ids, "升级后历史会话必须还在"
 
+        # 只断言「既有事件一条不少」：录制期间的后台任务只可能追加事件，
+        # 不该删改已有的；比较前 n 条比总数更稳（不受仍在追加的影响）。
         ev_after = client.get(f"/api/sessions/{sid}/events").json()
-        n_after = len(ev_after.get("events", ev_after))
-        assert n_after >= n_before, "事件数不得减少"
+        after_items = ev_after.get("events", ev_after)
+        assert len(after_items) >= n_before, "事件数不得减少"
+        before_seq = [e.get("seq") for e in (ev_before.get("events", ev_before))]
+        after_seq = {e.get("seq") for e in after_items}
+        missing = [s for s in before_seq if s not in after_seq]
+        assert not missing, f"重启后丢失了 {len(missing)} 条既有事件：{missing[:5]}"
 
         # 会话仍可打开（配置能反序列化 → 旧记录不会被新代码读崩）
         detail = client.get(f"/api/sessions/{sid}")

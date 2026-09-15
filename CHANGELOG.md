@@ -5,6 +5,67 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.3.1] - 2026-09-15
+
+修复四处「配置看起来能用、实际不生效」的缺陷，并给模型列表加上思考档位显示。
+
+### Added
+
+- **模型旁显示思考档位**：模型下拉里每个条目右侧标出它支持的档位
+  （如 `high / low / max`）；不支持思考的显式标注「无思考档位」，而不是留空——
+  留空白会让人以为是界面没加载出来。档位超过三档时折叠为前两档 + `+N`。
+- **DeepSeek V4.1-Flash（官方 id `deepseek-flash`）**：2026-09-10 发布的新模型，
+  已补入注册表并带思考档位（low / high / max）。旧的 `deepseek-v4-flash` 与
+  `deepseek-v4-flash-vision-exp` 官方已下线（仅作兼容路由），不再作为可选模型。
+
+### Fixed
+
+- **读取超时被连接超时顶替**：适配器此前写 `timeout=connect_s`，而 httpx 收到
+  单个数值时会把它同时应用到 connect / read / write / pool 四类。于是默认 30 秒的
+  「连接超时」被当成了「读取超时」——推理模型在高思考档位下首次出字常超过 30 秒，
+  长问题必然报「连接或读取超时」，而配置里的 `idle_s`（90s）与 `total_s`（900s）
+  根本没参与 HTTP 读取，调大也没用。现改为四类分开指定，读取超时取 `idle_s`。
+  超时信息也区分为「连接超时」与「读取超时（等待模型输出）」。
+- **运行中「换模型」不同步适配器**：`_apply_decision` 只改 `node.model` 而不动
+  `node.adapter`，于是新模型名被发到旧厂商的端点——厂商不认识，回 429/404，
+  界面误报「限流」。极端例子是给 `adapter=moonshot` 的节点选 `agy:`（本地 CLI），
+  却报出「HTTP 429」——CLI 根本没有 HTTP 状态码，这本身就证明请求没到它。
+  现抽出 `apply_model_to_node()`：换模型时自动切换到该模型所属厂商，
+  `cli_session` 的模型还会把 `settings.cli` 指到前缀。
+- **评审 / 辩论的字数上限从未生效**：`budget.max_chars_review`、
+  `budget.max_chars_debate` 与 `nodes.overrides.max_chars` 三项在配置里声明、
+  在示例配置里有说明，但没有任何代码读取。P4 辩论模板甚至写着「字数有上限」
+  却不带具体数字，模型无从遵守。现补上占位符与节点级覆盖解析。
+- **会话页只读提示显示成 i18n 键名**：`applyExportRaw()` 排在 `loadLocale()` 之前，
+  启动时译文表为空，界面直接显示 `settings.raw.off`。
+
+### Changed
+
+- **网页端可调「单次调用上限」（`total_s`）**：设置 → 运行参数新增输入框
+  （范围 60–7200 秒）。此前该值只能在配置文件里改，而只用网页的用户够不着它。
+- **「换模型」与「换适配器」改为下拉选择**：原先两者都是纯文本框，得凭空敲
+  adapter 名或 model id。现按厂商分组列出此刻真的能用的模型，并在选适配器时
+  提示其协议，提醒确认模型是否匹配。
+- 发布说明改为从本文件自动生成，Release 页面直接展示更新内容（不再只有一行链接）。
+
+### Security
+
+- 不变量不变：密钥只进系统钥匙串 / `.env`；模型输出仍不能触发任何文件写入。
+
+### 测试
+
+- 新增 41 项用例，合计 **521 项**（1 跳过）：
+  - `tests/test_stream_timeout.py`：超时四类分离语义、首字延迟不被连接超时打断。
+  - `tests/test_prompt_limits.py`：字数上限进入提示词、节点级覆盖、模板必须声明占位符。
+  - `tests/test_tuning_total.py`：网页端 `total_s` 的前端/传输/落地三层。
+  - `tests/test_adapter_picker.py`：下拉候选、协议提示、以及「历史记录不受 UI 改动影响」
+    （同一数据目录二次打开，既有事件的 seq 一条不少）。
+  - `tests/test_model_adapter_sync.py`：换模型必须同步适配器（含用户实际踩的
+    `moonshot` → `glm-5.3` 场景）。
+  - `tests/test_thinking_badges.py`：档位徽标、DeepSeek 新模型注册、旧 id 不再可选。
+- 多处做了反向验证：把缺陷造回去，断言如期失败。
+- `ruff`、`ruff format --check`、`mypy --strict`（34 个源文件）全绿。
+
 ## [1.3.0] - 2026-09-12
 
 在线模型清单更新（含新发现模型的思考档位推断）；以及做这个功能时暴露出来的注册表缺陷与
@@ -449,7 +510,8 @@
 - 密钥不入仓库：配置模型不包含任何密钥字段；真实密钥仅存 OS keyring 或已 gitignore 的 `.env`（M2 接入）。
 - 附件与模型输出一律视为数据：数据区包裹 + 系统提示声明 + 闭合标签转义。
 
-[Unreleased]: https://github.com/xmwy0712/ai-council/compare/v1.3.0...HEAD
+[Unreleased]: https://github.com/xmwy0712/ai-council/compare/v1.3.1...HEAD
+[1.3.1]: https://github.com/xmwy0712/ai-council/releases/tag/v1.3.1
 [1.3.0]: https://github.com/xmwy0712/ai-council/releases/tag/v1.3.0
 [1.2.2]: https://github.com/xmwy0712/ai-council/releases/tag/v1.2.2
 [1.2.1]: https://github.com/xmwy0712/ai-council/releases/tag/v1.2.1

@@ -9,7 +9,7 @@
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue)](pyproject.toml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![Models](https://img.shields.io/badge/models-126%20%2F%2014%20vendors-orange)](docs/PROVIDERS.md)
-[![Offline tests](https://img.shields.io/badge/offline%20tests-463%20passing-brightgreen)](https://github.com/xmwy0712/ai-council/actions/workflows/ci.yml)
+[![Offline tests](https://img.shields.io/badge/offline%20tests-521%20passing-brightgreen)](https://github.com/xmwy0712/ai-council/actions/workflows/ci.yml)
 
 [English](#english) | [中文](#中文)
 
@@ -171,7 +171,7 @@ council config-check                # 校验配置
 
 ### 状态
 
-当前 **v1.3.0**：**463 项离线测试**（1 跳过，全部不含真实网络）、`ruff` 与 `mypy --strict`（34 个源文件）全绿。CI 见 [.github/workflows](.github/workflows)。
+当前 **v1.3.1**：**521 项离线测试**（1 跳过，全部不含真实网络）、`ruff` 与 `mypy --strict`（34 个源文件）全绿。CI 见 [.github/workflows](.github/workflows)。
 
 **里程碑 M1–M6（至 v1.0.0）**
 
@@ -210,7 +210,7 @@ A：本地运行，只在调用模型时出网。「除模型端点外不联网�
 A：可以。注册表里已有 `ollama` 与 `vllm`，也能用 `generic_http` 接任意兼容端点。
 
 **Q：适合生产环境吗？**
-A：适合做关键决策辅助。463 项离线测试 + 全平台 CI 矩阵 + 语义化版本发布。它不做任何写操作，
+A：适合做关键决策辅助。521 项离线测试 + 全平台 CI 矩阵 + 语义化版本发布。它不做任何写操作，
 也不会替你执行决定。
 
 ```bash
@@ -373,7 +373,7 @@ council config-check
 
 ### Status
 
-Currently **v1.3.0**: **463 offline tests** (1 skipped, none touching the network), `ruff` and `mypy --strict` (34 source files) green. CI lives in [`.github/workflows`](.github/workflows).
+Currently **v1.3.1**: **521 offline tests** (1 skipped, none touching the network), `ruff` and `mypy --strict` (34 source files) green. CI lives in [`.github/workflows`](.github/workflows).
 
 **Milestones M1–M6 (through v1.0.0)**
 
@@ -419,7 +419,7 @@ A: Yes. `ollama` and `vllm` ship in the registry, and `generic_http` accepts any
 endpoint.
 
 **Q: Is it production-ready?**
-A: It is suited to decision support. 463 offline tests, a full-platform CI matrix and semantic
+A: It is suited to decision support. 521 offline tests, a full-platform CI matrix and semantic
 versioning. It performs no write operations and does not act on your behalf.
 
 ```bash
