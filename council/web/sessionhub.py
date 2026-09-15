@@ -21,6 +21,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import secrets
+import sqlite3
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
@@ -316,7 +317,30 @@ class SessionHub:
             resume_timeout_s=self._resume_timeout_s,
         )
         self.task = asyncio.create_task(self._run(question, files))
+        # 等「会话行」真正落盘再返回，否则调用方拿到 session_id 后立刻
+        # 去列表里找会扑空（POST 202 但 GET /api/sessions 看不到它）。
+        # 引擎在 run() 内部才写这行记录，而 run() 跑在后台任务里。
+        await self._await_session_row()
         return self.task
+
+    async def _await_session_row(self, timeout_s: float = 5.0) -> bool:
+        """等 store 里出现本会话的元数据行。
+
+        这是「已发生的事实」的等待，不改动引擎流程：只在写入可见后返回。
+        超时也不报错——服务照常响应，会话随后会自行出现（只是调用方
+        此刻还列不到它），因此这里返回布尔值供调用方决定是否提示。
+        """
+        deadline = asyncio.get_running_loop().time() + timeout_s
+        while True:
+            try:
+                if await self._store.get_session(self.session_id) is not None:
+                    return True
+            except (OSError, sqlite3.Error):
+                # 读取失败不该拖垮创建流程：继续重试，超时后照常返回
+                pass
+            if asyncio.get_running_loop().time() >= deadline:
+                return False
+            await asyncio.sleep(0.01)
 
     async def _on_drift(self, drift: ConfigChanged) -> str:
         await self._publish(

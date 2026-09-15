@@ -112,12 +112,12 @@ def test_model_picker_only_offers_usable_models() -> None:
 def test_history_is_untouched_by_ui_change(tmp_path: Path) -> None:
     """UI 改动不得影响历史记录：同一数据目录二次打开，会话与事件完全一致。
 
-    用户明确要求「历史对话记录更新后必须还在」。这里用同一 data_dir
-    建→读→再建，确认既有会话不被删改。
+    用户明确要求「历史对话记录更新后必须还在」。
 
-    不依赖会话后台任务是否跑完：重启模拟用的是**新数据目录的第二次 create_app**，
-    而断言只关心「会话行与事件行还在」——这是持久层的事，与会话跑到哪一步无关。
-    早期版本曾因后台任务与关闭时机竞争而偶发失败（1/3），故这里不校验进度类字段。
+    这条测试曾在 CI 上偶发失败（`assert sid in set()` ← 列表为空）。
+    根因不是测试写法，而是**产品竞态**：SessionHub.start() 只 create_task 就返回，
+    会话行由后台任务稍后才写。已修（见 test_session_visibility.py）。
+    所以这里保持严格断言——它正是一道防线。
     """
     with _client(tmp_path) as client:
         r = client.post("/api/sessions", json={"question": "历史保留验证"})
@@ -127,21 +127,20 @@ def test_history_is_untouched_by_ui_change(tmp_path: Path) -> None:
         first = client.get("/api/sessions").json()
         first_items = first.get("sessions", first)
         first_ids = {s["session_id"] for s in first_items}
-        assert sid in first_ids
+        assert sid in first_ids, "新建会话应立即可见（见 test_session_visibility）"
 
         ev_before = client.get(f"/api/sessions/{sid}/events").json()
         n_before = len(ev_before.get("events", ev_before))
-        assert n_before > 0, "新会话至少应有建会话事件"
+        assert n_before > 0
 
     # 重新打开同一目录（模拟升级后重启）
     with _client(tmp_path) as client:
         second = client.get("/api/sessions").json()
         second_items = second.get("sessions", second)
         second_ids = {s["session_id"] for s in second_items}
-        assert sid in second_ids, "升级后历史会话必须还在"
+        assert sid in second_ids, "重启后历史会话必须还在"
 
-        # 只断言「既有事件一条不少」：录制期间的后台任务只可能追加事件，
-        # 不该删改已有的；比较前 n 条比总数更稳（不受仍在追加的影响）。
+        # 既有事件一条不少，且 seq 不丢
         ev_after = client.get(f"/api/sessions/{sid}/events").json()
         after_items = ev_after.get("events", ev_after)
         assert len(after_items) >= n_before, "事件数不得减少"
